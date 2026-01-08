@@ -5,7 +5,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { ModuleRegistryService } from '../services/module-registry.service';
 import { ModuleStatus } from '../types/module.types';
-import { authenticate } from '../middleware/auth.middleware';
+import { requireAuth } from '../middleware/auth.middleware';
 
 interface RegisterModuleBody {
   manifest: any; // Will be validated by the service
@@ -28,7 +28,7 @@ interface ListModulesQuery {
 
 export async function modulesRoutes(app: FastifyInstance) {
   // Apply authentication to all module routes
-  app.addHook('onRequest', authenticate);
+  app.addHook('onRequest', requireAuth);
 
   /**
    * GET /modules
