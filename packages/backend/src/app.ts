@@ -2,7 +2,7 @@
  * Fastify application setup
  */
 
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
@@ -20,12 +20,32 @@ export async function buildApp(): Promise<FastifyInstance> {
     trustProxy: true,
   });
 
-  // Register CORS
+  // Add CORS headers manually as hooks (for Codespaces compatibility)
+  app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    const origin = request.headers.origin || '*';
+    reply.header('Access-Control-Allow-Origin', origin);
+    reply.header('Access-Control-Allow-Credentials', 'true');
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  });
+
+  // Handle preflight OPTIONS requests
+  app.options('*', async (request: FastifyRequest, reply: FastifyReply) => {
+    const origin = request.headers.origin || '*';
+    reply.header('Access-Control-Allow-Origin', origin);
+    reply.header('Access-Control-Allow-Credentials', 'true');
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    reply.header('Access-Control-Max-Age', '86400'); // 24 hours
+    return reply.status(204).send();
+  });
+
+  // Register CORS plugin as backup
   await app.register(cors, {
-    origin: true, // Allow all origins for now (development)
+    origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   });
 
   // Register JWT
