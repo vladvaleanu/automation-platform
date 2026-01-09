@@ -145,28 +145,50 @@ export default function CreateJobPage() {
           </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
-          {/* Module Selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Module <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.moduleId}
-              onChange={(e) => handleModuleChange(e.target.value)}
-              required
-              disabled={modulesLoading}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">Select a module...</option>
-              {modules.map((module) => (
-                <option key={module.id} value={module.id}>
-                  {module.name}
-                </option>
-              ))}
-            </select>
+        {/* No Modules Warning */}
+        {!modulesLoading && modules.length === 0 && (
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
+              No Modules Available
+            </h3>
+            <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-4">
+              You need to register and enable at least one module before creating jobs.
+            </p>
+            <div className="space-y-2 text-sm text-yellow-700 dark:text-yellow-400">
+              <p><strong>To get started:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 ml-2">
+                <li>Go to the <a href="/modules" className="underline font-medium">Modules page</a></li>
+                <li>Register a new module with a manifest that includes job definitions</li>
+                <li>Enable the module</li>
+                <li>Return here to create jobs</li>
+              </ol>
+            </div>
           </div>
+        )}
+
+        {/* Form */}
+        {modules.length > 0 && (
+          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
+            {/* Module Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Module <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.moduleId}
+                onChange={(e) => handleModuleChange(e.target.value)}
+                required
+                disabled={modulesLoading}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="">Select a module...</option>
+                {modules.map((module) => (
+                  <option key={module.id} value={module.id}>
+                    {module.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
           {/* Job Type Selection */}
           {formData.moduleId && (
@@ -379,24 +401,25 @@ export default function CreateJobPage() {
             </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={() => navigate('/jobs')}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={createJobMutation.isPending}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {createJobMutation.isPending ? 'Creating...' : 'Create Job'}
-            </button>
-          </div>
-        </form>
+            {/* Actions */}
+            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => navigate('/jobs')}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createJobMutation.isPending}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createJobMutation.isPending ? 'Creating...' : 'Create Job'}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </Layout>
   );
