@@ -71,6 +71,10 @@ export default function CreateJobPage() {
 
   const modules: Module[] = (modulesData?.data || []).filter((m: Module) => m.status === 'ENABLED');
 
+  // Debug: Log all modules and filtered modules
+  console.log('All modules from API:', modulesData?.data);
+  console.log('Filtered ENABLED modules:', modules);
+
   // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async (data: any) => {
