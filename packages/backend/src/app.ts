@@ -10,7 +10,7 @@ import { logger } from './config/logger';
 import { authRoutes } from './routes/auth.routes';
 import { prisma } from './lib/prisma';
 import { ModuleLifecycleService } from './services/module-lifecycle.service';
-import { ModuleLoaderService } from './services/module-loader.service';
+import { ModuleRouterService } from './services/module-router.service';
 import { ModuleRegistryService } from './services/module-registry.service';
 import { ModuleStatus } from './types/module.types';
 
@@ -117,6 +117,13 @@ export async function buildApp(): Promise<FastifyInstance> {
       app.log.error(error, 'Failed to load/register module routes');
       throw error;
     }
+
+    // Register wildcard route for dynamic module routing
+    app.log.info('Registering module wildcard router...');
+    instance.all('/modules/:moduleName/*', async (request, reply) => {
+      return ModuleRouterService.handleModuleRequest(request as any, reply);
+    });
+    app.log.info('Module wildcard router registered successfully');
   }, { prefix: '/api/v1' });
 
   // Global error handler
@@ -178,10 +185,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     const enabledModules = await ModuleRegistryService.list({ status: ModuleStatus.ENABLED });
 
     if (enabledModules.length > 0) {
-      await ModuleLoaderService.reloadAllModules(
-        app,
-        enabledModules.map(m => ({ name: m.name, manifest: m.manifest }))
-      );
+      for (const module of enabledModules) {
+        ModuleRouterService.enableModule(module.name, module.manifest);
+      }
       logger.info(`Successfully loaded ${enabledModules.length} enabled modules`);
     } else {
       logger.info('No enabled modules to load');

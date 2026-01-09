@@ -5,7 +5,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { ModuleRegistryService } from './module-registry.service';
-import { ModuleLoaderService } from './module-loader.service';
+import { ModuleRouterService } from './module-router.service';
 import { ModuleStatus } from '../types/module.types';
 import { prisma } from '../lib/prisma';
 import fs from 'fs/promises';
@@ -136,23 +136,8 @@ export class ModuleLifecycleService {
       // Enable the module
       await ModuleRegistryService.updateStatus(moduleName, ModuleStatus.ENABLED);
 
-      // Load module routes dynamically
-      if (this.app) {
-        const loadResult = await ModuleLoaderService.loadModuleRoutes(
-          this.app,
-          moduleName,
-          module.manifest
-        );
-
-        if (!loadResult.success) {
-          // Rollback to DISABLED if route loading fails
-          await ModuleRegistryService.updateStatus(moduleName, ModuleStatus.DISABLED);
-          return {
-            success: false,
-            error: `Failed to load module routes: ${loadResult.error}`,
-          };
-        }
-      }
+      // Enable module in router service
+      ModuleRouterService.enableModule(moduleName, module.manifest);
 
       return { success: true };
     } catch (error) {
@@ -204,10 +189,8 @@ export class ModuleLifecycleService {
         };
       }
 
-      // Unload module routes
-      if (this.app) {
-        await ModuleLoaderService.unloadModuleRoutes(moduleName);
-      }
+      // Disable module in router service
+      ModuleRouterService.disableModule(moduleName);
 
       // Disable the module
       await ModuleRegistryService.updateStatus(moduleName, ModuleStatus.DISABLED);
