@@ -18,7 +18,7 @@ export default function ModulesPage() {
   };
 
   // Fetch modules
-  const { data: modules = [], isLoading, error } = useQuery({
+  const { data: modulesData, isLoading, error } = useQuery({
     queryKey: ['modules'],
     queryFn: async () => {
       try {
@@ -31,6 +31,8 @@ export default function ModulesPage() {
       }
     },
   });
+
+  const modules: Module[] = Array.isArray(modulesData) ? modulesData : [];
 
   // Enable module mutation
   const enableMutation = useMutation({
