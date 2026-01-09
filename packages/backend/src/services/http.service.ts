@@ -1,0 +1,252 @@
+/**
+ * HTTP Service
+ * Provides HTTP client with retry logic and timeout handling
+ */
+
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { logger } from '../config/logger.js';
+import type {
+  HttpService as IHttpService,
+  HttpRequestOptions,
+  HttpResponse,
+} from '../types/job.types.js';
+
+export class HttpService implements IHttpService {
+  private client: AxiosInstance;
+  private defaultTimeout = 30000; // 30 seconds
+  private defaultRetries = 3;
+
+  constructor() {
+    this.client = axios.create({
+      timeout: this.defaultTimeout,
+      headers: {
+        'User-Agent': 'Automation-Platform/1.0',
+      },
+    });
+
+    // Add response interceptor for logging
+    this.client.interceptors.response.use(
+      (response) => {
+        logger.debug('HTTP request successful', {
+          method: response.config.method?.toUpperCase(),
+          url: response.config.url,
+          status: response.status,
+        });
+        return response;
+      },
+      (error) => {
+        logger.debug('HTTP request failed', {
+          method: error.config?.method?.toUpperCase(),
+          url: error.config?.url,
+          status: error.response?.status,
+          message: error.message,
+        });
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  /**
+   * Perform GET request
+   */
+  async get<T = any>(url: string, options: HttpRequestOptions = {}): Promise<HttpResponse<T>> {
+    return this.request<T>('GET', url, undefined, options);
+  }
+
+  /**
+   * Perform POST request
+   */
+  async post<T = any>(
+    url: string,
+    data?: any,
+    options: HttpRequestOptions = {}
+  ): Promise<HttpResponse<T>> {
+    return this.request<T>('POST', url, data, options);
+  }
+
+  /**
+   * Perform PUT request
+   */
+  async put<T = any>(
+    url: string,
+    data?: any,
+    options: HttpRequestOptions = {}
+  ): Promise<HttpResponse<T>> {
+    return this.request<T>('PUT', url, data, options);
+  }
+
+  /**
+   * Perform DELETE request
+   */
+  async delete<T = any>(url: string, options: HttpRequestOptions = {}): Promise<HttpResponse<T>> {
+    return this.request<T>('DELETE', url, undefined, options);
+  }
+
+  /**
+   * Perform PATCH request
+   */
+  async patch<T = any>(
+    url: string,
+    data?: any,
+    options: HttpRequestOptions = {}
+  ): Promise<HttpResponse<T>> {
+    return this.request<T>('PATCH', url, data, options);
+  }
+
+  /**
+   * Generic request method with retry logic
+   */
+  private async request<T = any>(
+    method: string,
+    url: string,
+    data?: any,
+    options: HttpRequestOptions = {}
+  ): Promise<HttpResponse<T>> {
+    const {
+      headers = {},
+      timeout = this.defaultTimeout,
+      retries = this.defaultRetries,
+    } = options;
+
+    const config: AxiosRequestConfig = {
+      method,
+      url,
+      data,
+      headers,
+      timeout,
+    };
+
+    let lastError: any;
+    let attempt = 0;
+
+    while (attempt <= retries) {
+      try {
+        const response = await this.client.request<T>(config);
+
+        return {
+          data: response.data,
+          status: response.status,
+          headers: response.headers as Record<string, string>,
+        };
+      } catch (error: any) {
+        lastError = error;
+        attempt++;
+
+        // Don't retry on client errors (4xx) except 429 (rate limit)
+        if (
+          error.response?.status &&
+          error.response.status >= 400 &&
+          error.response.status < 500 &&
+          error.response.status !== 429
+        ) {
+          break;
+        }
+
+        // Don't retry if no more attempts left
+        if (attempt > retries) {
+          break;
+        }
+
+        // Calculate exponential backoff delay
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+
+        logger.warn(`HTTP request failed, retrying in ${delay}ms (attempt ${attempt}/${retries})`, {
+          method,
+          url,
+          status: error.response?.status,
+          message: error.message,
+        });
+
+        await this.sleep(delay);
+      }
+    }
+
+    // All retries failed
+    const errorMessage = lastError.response
+      ? `HTTP ${method} ${url} failed with status ${lastError.response.status}: ${lastError.response.statusText}`
+      : `HTTP ${method} ${url} failed: ${lastError.message}`;
+
+    logger.error(errorMessage, {
+      method,
+      url,
+      attempts: attempt,
+      error: lastError.message,
+    });
+
+    throw new Error(errorMessage);
+  }
+
+  /**
+   * Download file from URL
+   */
+  async downloadFile(url: string, options: HttpRequestOptions = {}): Promise<Buffer> {
+    const { headers = {}, timeout = 60000 } = options;
+
+    try {
+      const response = await this.client.get(url, {
+        headers,
+        timeout,
+        responseType: 'arraybuffer',
+      });
+
+      return Buffer.from(response.data);
+    } catch (error: any) {
+      const errorMessage = error.response
+        ? `File download failed with status ${error.response.status}`
+        : `File download failed: ${error.message}`;
+
+      logger.error(errorMessage, { url, error: error.message });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Check if URL is accessible
+   */
+  async checkUrl(url: string, timeout = 5000): Promise<boolean> {
+    try {
+      const response = await this.client.head(url, { timeout });
+      return response.status >= 200 && response.status < 400;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Perform multiple requests in parallel
+   */
+  async parallel<T = any>(
+    requests: Array<{
+      method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+      url: string;
+      data?: any;
+      options?: HttpRequestOptions;
+    }>
+  ): Promise<HttpResponse<T>[]> {
+    const promises = requests.map((req) =>
+      this.request<T>(req.method, req.url, req.data, req.options)
+    );
+
+    return Promise.all(promises);
+  }
+
+  /**
+   * Get service statistics
+   */
+  getStats() {
+    return {
+      defaultTimeout: this.defaultTimeout,
+      defaultRetries: this.defaultRetries,
+    };
+  }
+
+  /**
+   * Sleep helper for retry delay
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}
+
+// Singleton instance
+export const httpService = new HttpService();

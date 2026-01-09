@@ -1,0 +1,246 @@
+/**
+ * Job Executor Service
+ * Handles loading and executing job handlers from modules
+ */
+
+import { pathToFileURL } from 'url';
+import * as path from 'path';
+import { prisma } from '../lib/prisma.js';
+import { logger } from '../config/logger.js';
+import type { JobContext, JobHandler } from '../types/job.types.js';
+import { env } from '../config/env.js';
+import { browserService } from './browser.service.js';
+import { notificationService } from './notification.service.js';
+import { httpService } from './http.service.js';
+import { LoggerService } from './logger.service.js';
+import { databaseService } from './database.service.js';
+
+export class JobExecutorService {
+  private handlerCache = new Map<string, JobHandler>();
+  private logBuffers = new Map<string, string[]>();
+
+  /**
+   * Execute a job handler
+   */
+  async executeJob(
+    jobId: string,
+    moduleId: string,
+    handlerPath: string,
+    config: Record<string, any>,
+    executionId: string
+  ): Promise<any> {
+    // Get job and module details
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+    });
+
+    if (!job) {
+      throw new Error(`Job ${jobId} not found`);
+    }
+
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
+    });
+
+    if (!module) {
+      throw new Error(`Module ${moduleId} not found`);
+    }
+
+    // Load the job handler
+    const handler = await this.loadHandler(moduleId, handlerPath);
+
+    // Build job context
+    const context = this.buildJobContext(job, module, config, executionId);
+
+    // Execute with timeout
+    const timeoutMs = job.timeout || 300000; // Default 5 minutes
+    const result = await this.executeWithTimeout(
+      handler,
+      context,
+      timeoutMs,
+      executionId
+    );
+
+    // Save logs to database
+    await this.saveLogs(executionId);
+
+    return result;
+  }
+
+  /**
+   * Load a job handler from a module
+   */
+  private async loadHandler(
+    moduleId: string,
+    handlerPath: string
+  ): Promise<JobHandler> {
+    const cacheKey = `${moduleId}:${handlerPath}`;
+
+    // Check cache first
+    if (this.handlerCache.has(cacheKey)) {
+      return this.handlerCache.get(cacheKey)!;
+    }
+
+    // Construct the full path to the handler
+    // Modules are stored in: data/modules/{moduleName}/
+    const module = await prisma.module.findUnique({
+      where: { id: moduleId },
+    });
+
+    if (!module) {
+      throw new Error(`Module ${moduleId} not found`);
+    }
+
+    const modulePath = path.resolve(
+      process.cwd(),
+      'data',
+      'modules',
+      module.name,
+      handlerPath
+    );
+
+    try {
+      // Dynamic import of the handler
+      const fileUrl = pathToFileURL(modulePath).href;
+      const handlerModule = await import(fileUrl);
+
+      // Handler should export a default function or named 'handler' function
+      const handler = handlerModule.default || handlerModule.handler;
+
+      if (typeof handler !== 'function') {
+        throw new Error(`Handler at ${handlerPath} is not a function`);
+      }
+
+      // Cache the handler
+      this.handlerCache.set(cacheKey, handler);
+
+      return handler;
+    } catch (error: any) {
+      logger.error(`Failed to load handler: ${modulePath}`, error);
+      throw new Error(`Failed to load handler: ${error.message}`);
+    }
+  }
+
+  /**
+   * Build the job context with all services
+   */
+  private buildJobContext(
+    job: any,
+    module: any,
+    config: Record<string, any>,
+    executionId: string
+  ): JobContext {
+    // Initialize log buffer
+    if (!this.logBuffers.has(executionId)) {
+      this.logBuffers.set(executionId, []);
+    }
+
+    const logBuffer = this.logBuffers.get(executionId)!;
+
+    return {
+      config,
+      module: {
+        id: module.id,
+        name: module.name,
+        config: module.config || {},
+      },
+      services: {
+        // Browser service with Playwright
+        browser: browserService,
+        // Notification service (email, SMS, webhooks)
+        notifications: notificationService,
+        // HTTP service with retry logic
+        http: httpService,
+        // Logger service with execution tracking
+        logger: LoggerService.createJobLogger(
+          {
+            jobId: job.id,
+            executionId,
+            moduleName: module.name,
+          },
+          logBuffer
+        ),
+        // Database service with helpers
+        database: databaseService,
+        // Event bus service (to be implemented in Step 5)
+        events: {} as any,
+      },
+    };
+  }
+
+  /**
+   * Execute handler with timeout
+   */
+  private async executeWithTimeout<T>(
+    handler: JobHandler,
+    context: JobContext,
+    timeoutMs: number,
+    executionId: string
+  ): Promise<T> {
+    return new Promise<T>(async (resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        reject(new Error(`Job execution timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      try {
+        const result = await handler(context);
+        clearTimeout(timeoutHandle);
+        resolve(result);
+      } catch (error) {
+        clearTimeout(timeoutHandle);
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Save accumulated logs to the execution record
+   */
+  private async saveLogs(executionId: string): Promise<void> {
+    const logs = this.logBuffers.get(executionId);
+
+    if (!logs || logs.length === 0) {
+      return;
+    }
+
+    const logsText = logs.join('\n');
+
+    await prisma.jobExecution.update({
+      where: { id: executionId },
+      data: { logs: logsText },
+    });
+
+    // Clear the buffer
+    this.logBuffers.delete(executionId);
+  }
+
+  /**
+   * Clear handler cache (useful when modules are updated)
+   */
+  clearCache(moduleId?: string): void {
+    if (moduleId) {
+      // Clear cache for specific module
+      for (const [key] of this.handlerCache.entries()) {
+        if (key.startsWith(`${moduleId}:`)) {
+          this.handlerCache.delete(key);
+        }
+      }
+    } else {
+      // Clear entire cache
+      this.handlerCache.clear();
+    }
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    return {
+      cachedHandlers: this.handlerCache.size,
+      activeLogBuffers: this.logBuffers.size,
+    };
+  }
+}
+
+// Singleton instance
+export const jobExecutorService = new JobExecutorService();

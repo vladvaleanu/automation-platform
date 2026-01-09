@@ -107,7 +107,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     // Register module registry routes
     try {
       app.log.info('Attempting to import module routes...');
-      const { modulesRoutes } = await import('./routes/modules.routes');
+      const { modulesRoutes } = await import('./routes/modules.routes.js');
       app.log.info('Module routes imported successfully');
 
       app.log.info('Registering module routes...');
@@ -115,6 +115,34 @@ export async function buildApp(): Promise<FastifyInstance> {
       app.log.info('Module routes registered successfully');
     } catch (error) {
       app.log.error(error, 'Failed to load/register module routes');
+      throw error;
+    }
+
+    // Register job management routes (Phase 3)
+    try {
+      app.log.info('Attempting to import job routes...');
+      const { jobsRoutes } = await import('./routes/jobs.routes.js');
+      app.log.info('Job routes imported successfully');
+
+      app.log.info('Registering job routes...');
+      await instance.register(jobsRoutes, { prefix: '/jobs' });
+      app.log.info('Job routes registered successfully');
+    } catch (error) {
+      app.log.error(error, 'Failed to load/register job routes');
+      throw error;
+    }
+
+    // Register execution routes (Phase 3)
+    try {
+      app.log.info('Attempting to import execution routes...');
+      const { executionsRoutes } = await import('./routes/executions.routes.js');
+      app.log.info('Execution routes imported successfully');
+
+      app.log.info('Registering execution routes...');
+      await instance.register(executionsRoutes, { prefix: '/executions' });
+      app.log.info('Execution routes registered successfully');
+    } catch (error) {
+      app.log.error(error, 'Failed to load/register execution routes');
       throw error;
     }
 

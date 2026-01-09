@@ -5,10 +5,26 @@
 import { buildApp } from './app';
 import { env } from './config/env';
 import { logger } from './config/logger';
+import { workerService } from './services/worker.service.js';
+import { jobExecutorService } from './services/job-executor.service.js';
+import { jobSchedulerService } from './services/job-scheduler.service.js';
+import { browserService } from './services/browser.service.js';
+import { databaseService } from './services/database.service.js';
 
 async function start() {
   try {
     const app = await buildApp();
+
+    // Start worker pool for job execution
+    logger.info('Initializing job execution services...');
+    workerService.setExecutor(jobExecutorService);
+    await workerService.start();
+    logger.info('Worker pool started');
+
+    // Initialize scheduled jobs
+    logger.info('Initializing job schedules...');
+    await jobSchedulerService.initializeSchedules();
+    logger.info('Job schedules initialized');
 
     await app.listen({
       port: env.PORT,
@@ -25,7 +41,19 @@ async function start() {
     signals.forEach((signal) => {
       process.on(signal, async () => {
         logger.info(`Received ${signal}, shutting down gracefully...`);
+
+        // Stop worker pool
+        await workerService.stop();
+
+        // Close all browser sessions
+        await browserService.closeAllSessions();
+
+        // Disconnect database
+        await databaseService.disconnect();
+
+        // Close Fastify
         await app.close();
+
         process.exit(0);
       });
     });
