@@ -13,6 +13,10 @@ export default function ModulesPage() {
   const queryClient = useQueryClient();
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
 
+  const handleInstallModule = () => {
+    alert('Module installation UI coming soon! For now, modules can be registered via API.');
+  };
+
   // Fetch modules
   const { data: modules = [], isLoading, error } = useQuery({
     queryKey: ['modules'],
@@ -97,6 +101,7 @@ export default function ModulesPage() {
           </p>
         </div>
         <button
+          onClick={handleInstallModule}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
           Install Module
@@ -259,7 +264,7 @@ export default function ModulesPage() {
                   {getStatusBadge(selectedModule.status)}
                 </div>
 
-                {selectedModule.manifest.capabilities?.api?.routes && (
+                {selectedModule.manifest?.capabilities?.api?.routes && (
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Routes</h3>
                     <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
