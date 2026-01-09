@@ -10,6 +10,10 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ModulesPage from './pages/ModulesPage';
+import JobsPage from './pages/JobsPage';
+import ExecutionsPage from './pages/ExecutionsPage';
+import ExecutionDetailPage from './pages/ExecutionDetailPage';
+import EventsPage from './pages/EventsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -47,6 +51,46 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ModulesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jobs"
+                element={
+                  <ProtectedRoute>
+                    <JobsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jobs/:jobId/executions"
+                element={
+                  <ProtectedRoute>
+                    <ExecutionsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/executions"
+                element={
+                  <ProtectedRoute>
+                    <ExecutionsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/executions/:id"
+                element={
+                  <ProtectedRoute>
+                    <ExecutionDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/events"
+                element={
+                  <ProtectedRoute>
+                    <EventsPage />
                   </ProtectedRoute>
                 }
               />

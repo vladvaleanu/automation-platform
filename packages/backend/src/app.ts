@@ -146,6 +146,20 @@ export async function buildApp(): Promise<FastifyInstance> {
       throw error;
     }
 
+    // Register event routes (Phase 3)
+    try {
+      app.log.info('Attempting to import event routes...');
+      const { eventsRoutes } = await import('./routes/events.routes.js');
+      app.log.info('Event routes imported successfully');
+
+      app.log.info('Registering event routes...');
+      await instance.register(eventsRoutes, { prefix: '/events' });
+      app.log.info('Event routes registered successfully');
+    } catch (error) {
+      app.log.error(error, 'Failed to load/register event routes');
+      throw error;
+    }
+
     // Register wildcard route for dynamic module routing
     app.log.info('Registering module wildcard router...');
     instance.all('/modules/:moduleName/*', async (request, reply) => {

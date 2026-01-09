@@ -14,6 +14,7 @@ import { notificationService } from './notification.service.js';
 import { httpService } from './http.service.js';
 import { LoggerService } from './logger.service.js';
 import { databaseService } from './database.service.js';
+import { eventBusService } from './event-bus.service.js';
 
 export class JobExecutorService {
   private handlerCache = new Map<string, JobHandler>();
@@ -162,8 +163,8 @@ export class JobExecutorService {
         ),
         // Database service with helpers
         database: databaseService,
-        // Event bus service (to be implemented in Step 5)
-        events: {} as any,
+        // Event bus service for cross-module communication
+        events: eventBusService,
       },
     };
   }

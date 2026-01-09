@@ -10,10 +10,16 @@ import { jobExecutorService } from './services/job-executor.service.js';
 import { jobSchedulerService } from './services/job-scheduler.service.js';
 import { browserService } from './services/browser.service.js';
 import { databaseService } from './services/database.service.js';
+import { eventBusService } from './services/event-bus.service.js';
 
 async function start() {
   try {
     const app = await buildApp();
+
+    // Initialize event bus
+    logger.info('Initializing event bus...');
+    await eventBusService.initialize();
+    logger.info('Event bus initialized');
 
     // Start worker pool for job execution
     logger.info('Initializing job execution services...');
@@ -44,6 +50,9 @@ async function start() {
 
         // Stop worker pool
         await workerService.stop();
+
+        // Disconnect event bus
+        await eventBusService.disconnect();
 
         // Close all browser sessions
         await browserService.closeAllSessions();

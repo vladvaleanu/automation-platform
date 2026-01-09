@@ -25,6 +25,9 @@ export default function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', path: '/dashboard', icon: '📊' },
     { name: 'Modules', path: '/modules', icon: '📦' },
+    { name: 'Jobs', path: '/jobs', icon: '⚙️' },
+    { name: 'Executions', path: '/executions', icon: '📋' },
+    { name: 'Events', path: '/events', icon: '📡' },
   ];
 
   const isActive = (path: string) => location.pathname === path;
