@@ -76,7 +76,7 @@ fi
 
 # Now delete the module (works for any status)
 echo "Deleting module registration..."
-DELETE_RESPONSE=$(curl -s -X DELETE "$API_URL/modules/$MODULE_ID" \
+DELETE_RESPONSE=$(curl -s -X DELETE "$API_URL/modules/data-sync-module" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
 echo "Delete Response:"
