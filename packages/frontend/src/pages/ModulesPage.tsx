@@ -20,7 +20,16 @@ export default function ModulesPage() {
   // Fetch modules
   const { data: modules = [], isLoading, error } = useQuery({
     queryKey: ['modules'],
-    queryFn: () => modulesApi.list(),
+    queryFn: async () => {
+      try {
+        const result = await modulesApi.list();
+        console.log('Modules loaded:', result);
+        return result;
+      } catch (err) {
+        console.error('Failed to load modules:', err);
+        throw err;
+      }
+    },
   });
 
   // Enable module mutation
