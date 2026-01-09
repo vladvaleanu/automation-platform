@@ -38,23 +38,23 @@ MANIFEST=$(cat <<'EOF'
   "author": "Automation Platform",
   "license": "MIT",
   "capabilities": {
-    "api": true,
-    "jobs": true,
-    "events": true
-  },
-  "permissions": {
-    "database": {
-      "read": true,
-      "write": true
+    "api": {
+      "routes": []
     },
-    "network": {
-      "outbound": ["api.example.com", "data.example.com"]
+    "jobs": {
+      "handlers": []
     },
     "events": {
-      "emit": ["data.synced", "data.sync.failed"],
-      "subscribe": ["user.created", "user.updated"]
+      "listeners": ["user.created", "user.updated"],
+      "emitters": ["data.synced", "data.sync.failed", "report.generated", "health.checked", "health.alert"]
     }
   },
+  "permissions": [
+    "database:read",
+    "database:write",
+    "network:outbound:api.example.com",
+    "network:outbound:data.example.com"
+  ],
   "jobs": [
     {
       "name": "Hourly Data Sync",
