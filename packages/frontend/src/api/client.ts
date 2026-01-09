@@ -70,8 +70,21 @@ class ApiClient {
               // Refresh failed, clear tokens and redirect to login
               localStorage.removeItem('accessToken');
               localStorage.removeItem('refreshToken');
-              window.location.href = '/login';
+
+              // Prevent multiple redirects
+              if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+              }
               return Promise.reject(refreshError);
+            }
+          } else {
+            // No refresh token, clear everything and redirect
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('refreshToken');
+
+            // Prevent multiple redirects
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
             }
           }
         }

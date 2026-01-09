@@ -53,6 +53,7 @@ export default function CreateJobPage() {
     config: '{}',
   });
   const [showCronBuilder, setShowCronBuilder] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModuleHandlers, setSelectedModuleHandlers] = useState<any[]>([]);
 
   // Fetch modules
@@ -167,39 +168,50 @@ export default function CreateJobPage() {
             </select>
           </div>
 
-          {/* Handler Selection */}
+          {/* Job Type Selection */}
           {formData.moduleId && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Handler <span className="text-red-500">*</span>
+                Job Type <span className="text-red-500">*</span>
               </label>
               {selectedModuleHandlers.length > 0 ? (
-                <select
-                  value={formData.handler}
-                  onChange={(e) => handleHandlerChange(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="">Select a handler...</option>
-                  {selectedModuleHandlers.map((job, idx) => (
-                    <option key={idx} value={job.handler}>
-                      {job.name} ({job.handler})
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    value={formData.handler}
+                    onChange={(e) => handleHandlerChange(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Select a job type...</option>
+                    {selectedModuleHandlers.map((job, idx) => (
+                      <option key={idx} value={job.handler}>
+                        {job.name}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.handler && (
+                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        {selectedModuleHandlers.find(j => j.handler === formData.handler)?.description || 'No description available'}
+                      </p>
+                    </div>
+                  )}
+                </>
               ) : (
-                <input
-                  type="text"
-                  value={formData.handler}
-                  onChange={(e) => setFormData({ ...formData, handler: e.target.value })}
-                  placeholder="e.g., jobs/monitor.js"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
+                <>
+                  <input
+                    type="text"
+                    value={formData.handler}
+                    onChange={(e) => setFormData({ ...formData, handler: e.target.value })}
+                    placeholder="e.g., jobs/monitor.js"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    This module doesn't have predefined jobs. Enter the path to your job handler file.
+                  </p>
+                </>
               )}
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Path to the job handler file in the module
-              </p>
             </div>
           )}
 
@@ -279,61 +291,82 @@ export default function CreateJobPage() {
             </p>
           </div>
 
-          {/* Timeout */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Timeout (milliseconds)
-            </label>
-            <input
-              type="number"
-              value={formData.timeout}
-              onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
-              min="1000"
-              step="1000"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Default: 300000ms (5 minutes)
-            </p>
+          {/* Advanced Settings Toggle */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            >
+              <span>{showAdvanced ? '▼' : '▶'}</span>
+              <span className="ml-2">Advanced Settings</span>
+              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(optional)</span>
+            </button>
           </div>
 
-          {/* Retries */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Max Retries
-            </label>
-            <input
-              type="number"
-              value={formData.retries}
-              onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) })}
-              min="0"
-              max="10"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Number of retry attempts on failure (0-10)
-            </p>
-          </div>
+          {/* Advanced Settings */}
+          {showAdvanced && (
+            <div className="space-y-6 pl-4 border-l-2 border-blue-500">
+              {/* Timeout */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Timeout
+                </label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="number"
+                    value={formData.timeout / 1000}
+                    onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) * 1000 })}
+                    min="1"
+                    step="1"
+                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">seconds</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Maximum time the job can run (default: 300 seconds / 5 minutes)
+                </p>
+              </div>
 
-          {/* Config */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Configuration (JSON)
-            </label>
-            <textarea
-              value={formData.config}
-              onChange={(e) => setFormData({ ...formData, config: e.target.value })}
-              placeholder='{"key": "value"}'
-              rows={5}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Job-specific configuration as JSON
-            </p>
-          </div>
+              {/* Retries */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Retry Attempts
+                </label>
+                <input
+                  type="number"
+                  value={formData.retries}
+                  onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) })}
+                  min="0"
+                  max="10"
+                  className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  How many times to retry if the job fails (0-10, default: 3)
+                </p>
+              </div>
+
+              {/* Config */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Custom Configuration (JSON)
+                </label>
+                <textarea
+                  value={formData.config}
+                  onChange={(e) => setFormData({ ...formData, config: e.target.value })}
+                  placeholder='{"apiKey": "xxx", "endpoint": "https://..."}&#10;&#10;Optional: Add job-specific settings here'
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Job-specific configuration in JSON format (optional)
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Enabled */}
-          <div className="flex items-center">
+          <div className="flex items-center pt-4">
             <input
               type="checkbox"
               id="enabled"
@@ -342,7 +375,7 @@ export default function CreateJobPage() {
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
             <label htmlFor="enabled" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-              Enable job immediately after creation
+              Enable and start scheduling immediately after creation
             </label>
           </div>
 
