@@ -11,6 +11,7 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ModulesPage from './pages/ModulesPage';
 import JobsPage from './pages/JobsPage';
+import CreateJobPage from './pages/CreateJobPage';
 import ExecutionsPage from './pages/ExecutionsPage';
 import ExecutionDetailPage from './pages/ExecutionDetailPage';
 import EventsPage from './pages/EventsPage';
@@ -59,6 +60,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <JobsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jobs/new"
+                element={
+                  <ProtectedRoute>
+                    <CreateJobPage />
                   </ProtectedRoute>
                 }
               />
