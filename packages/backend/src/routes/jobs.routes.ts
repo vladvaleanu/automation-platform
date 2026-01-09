@@ -291,20 +291,11 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // Create execution record
-    const execution = await prisma.jobExecution.create({
-      data: {
-        jobId: id,
-        status: 'PENDING',
-      },
-    });
-
-    // Add to queue
+    // Add to queue (worker will create execution record)
     await jobQueueService.addJob(job as any);
 
     return reply.send({
       success: true,
-      data: execution,
       message: 'Job queued for execution',
     });
   });
