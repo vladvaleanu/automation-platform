@@ -45,7 +45,16 @@ MANIFEST=$(cat <<'EOF'
       "handlers": []
     },
     "events": {
-      "listeners": ["user.created", "user.updated"],
+      "listeners": [
+        {
+          "event": "user.created",
+          "handler": "handlers/user-created.js"
+        },
+        {
+          "event": "user.updated",
+          "handler": "handlers/user-updated.js"
+        }
+      ],
       "emitters": ["data.synced", "data.sync.failed", "report.generated", "health.checked", "health.alert"]
     }
   },
