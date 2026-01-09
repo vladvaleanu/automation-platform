@@ -67,6 +67,7 @@ export async function modulesRoutes(app: FastifyInstance) {
                     displayName: { type: 'string' },
                     description: { type: 'string', nullable: true },
                     status: { type: 'string' },
+                    manifest: { type: 'object' },
                     installedAt: { type: 'string', nullable: true },
                     enabledAt: { type: 'string', nullable: true },
                     disabledAt: { type: 'string', nullable: true },
