@@ -44,7 +44,7 @@ export default function JobsPage() {
 
       const response = await axios.get(`${API_URL}/jobs?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -57,7 +57,7 @@ export default function JobsPage() {
     queryFn: async () => {
       const response = await axios.get(`${API_URL}/modules`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -69,7 +69,7 @@ export default function JobsPage() {
     mutationFn: async (jobId: string) => {
       const response = await axios.post(`${API_URL}/jobs/${jobId}/execute`, {}, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -88,7 +88,7 @@ export default function JobsPage() {
       const endpoint = enabled ? 'disable' : 'enable';
       const response = await axios.put(`${API_URL}/jobs/${jobId}/${endpoint}`, {}, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -106,7 +106,7 @@ export default function JobsPage() {
     mutationFn: async (jobId: string) => {
       const response = await axios.delete(`${API_URL}/jobs/${jobId}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;

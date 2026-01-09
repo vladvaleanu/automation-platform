@@ -46,7 +46,7 @@ export default function ExecutionsPage() {
 
       const response = await axios.get(`${API_URL}/executions?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;

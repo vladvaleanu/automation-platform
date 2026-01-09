@@ -61,7 +61,7 @@ export default function CreateJobPage() {
     queryFn: async () => {
       const response = await axios.get(`${API_URL}/modules`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -75,7 +75,7 @@ export default function CreateJobPage() {
     mutationFn: async (data: any) => {
       const response = await axios.post(`${API_URL}/jobs`, data, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;

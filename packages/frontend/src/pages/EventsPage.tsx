@@ -43,7 +43,7 @@ export default function EventsPage() {
 
       const response = await axios.get(`${API_URL}/events?${params}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
@@ -57,7 +57,7 @@ export default function EventsPage() {
     queryFn: async () => {
       const response = await axios.get(`${API_URL}/events/stats/summary`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
       });
       return response.data;
