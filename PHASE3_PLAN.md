@@ -1,19 +1,19 @@
 # Phase 3: Automation Runtime - Implementation Plan
 
 **Status**: 🚀 Ready to Start
-**Duration**: 4 weeks
 **Prerequisites**: ✅ Phase 2 Complete
 
 ## 📋 Overview
 
-Phase 3 builds the automation runtime that allows modules to schedule and execute jobs, communicate via events, and run automated tasks in the data center environment.
+Phase 3 builds the automation runtime that allows modules to schedule and execute jobs, communicate via events, and run automated browser-based tasks in the data center environment.
 
 ## 🎯 Objectives
 
-1. **Job Scheduling** - Schedule and execute module jobs with cron expressions
-2. **Worker Pool** - Isolated job execution with resource management
-3. **Event System** - Pub/sub communication between modules
-4. **Job Monitoring** - Track job execution, logs, and history
+1. **Job Scheduling** - Schedule and execute module jobs with cron expressions using BullMQ
+2. **Worker Pool** - Isolated job execution with process isolation, resource limits, and health monitoring
+3. **Browser Automation** - Playwright integration with container sandboxing for web scraping and automation
+4. **Event System** - Redis pub/sub for cross-module messaging with event schema
+5. **Job Monitoring** - Track job execution, logs, and history with management UI
 
 ## 🏗️ Architecture Components
 
@@ -48,88 +48,184 @@ Phase 3 builds the automation runtime that allows modules to schedule and execut
 - Error recovery
 - Resource cleanup
 
-### 3. Event System
+### 3. Browser Automation System
 
-**Technology**: EventEmitter / Redis Pub/Sub
+**Technology**: Playwright + Docker/Podman
+
+**Components**:
+- Browser Pool Manager
+- Playwright Service
+- Container Orchestration
+- Session Management
+- Screenshot & PDF Generation
+
+**Features**:
+- Headless browser automation
+- Container sandboxing for security
+- Browser session pooling
+- Auto-scaling based on load
+- Screenshot and PDF capture
+- Network request interception
+- Cookie and storage management
+
+**Sandboxing**:
+- Each browser instance runs in isolated container
+- Resource limits (CPU, memory, network)
+- Automatic cleanup after execution
+- No persistent storage between runs
+
+### 4. Event System
+
+**Technology**: Redis Pub/Sub
 
 **Components**:
 - Event Bus Service
-- Event Registry
+- Event Registry & Schema Validation
 - Event Listeners
 - Event History
 
 **Features**:
 - Module-to-module communication
-- Event subscriptions
+- Event subscriptions with schema validation
 - Event replay
 - Event filtering
+- Cross-worker event distribution
 
-## 📅 Implementation Timeline
+## 📅 Implementation Steps
 
-### Week 1: Job Scheduling Foundation
-**Days 1-2**: Database schema and types
-- Create Job, JobExecution, JobSchedule tables
-- Define TypeScript types
+Implementation will follow a logical dependency order. Each component builds on the previous ones.
+
+### Step 1: Core Infrastructure
+**Database Schema & Types**
+- Create Job, JobExecution, JobSchedule, Event tables
+- Define TypeScript types for all entities
 - Create Prisma migrations
+- Seed example data
 
-**Days 3-4**: BullMQ integration
-- Install and configure BullMQ
-- Create JobQueueService
-- Implement job queue management
+**Dependencies to Install**
+- BullMQ + IORedis for job queue
+- Playwright for browser automation
+- Cron-parser for schedule parsing
+- Additional utilities
 
-**Day 5**: Job scheduling
-- Create JobSchedulerService
-- Implement cron-based scheduling
-- Add job creation API
+### Step 2: Job Scheduling System
+**BullMQ Integration**
+- Install and configure BullMQ with Redis
+- Create JobQueueService for queue management
+- Implement queue monitoring and metrics
+- Set up dead letter queue for failed jobs
 
-### Week 2: Job Execution & Workers
-**Days 1-2**: Worker pool implementation
-- Create WorkerService
-- Implement job executor
-- Add resource limits
+**Job Scheduler Service**
+- Create JobSchedulerService for cron scheduling
+- Implement schedule parsing and validation
+- Add job creation, update, delete APIs
+- Build schedule calculation (next run times)
 
-**Days 3-4**: Job execution
-- Dynamic job handler loading
+**Job Management APIs**
+- POST /api/v1/jobs - Create job
+- GET /api/v1/jobs - List jobs with filters
+- GET /api/v1/jobs/:id - Get job details
+- PUT /api/v1/jobs/:id - Update job
+- DELETE /api/v1/jobs/:id - Delete job
+- POST /api/v1/jobs/:id/execute - Manual trigger
+- PUT /api/v1/jobs/:id/enable - Enable job
+- PUT /api/v1/jobs/:id/disable - Disable job
+
+### Step 3: Worker Pool & Job Execution
+**Worker Service**
+- Create WorkerService for job processing
+- Implement worker pool with concurrency control
+- Add process isolation for job execution
+- Resource limits (CPU, memory, time)
+- Health monitoring for workers
+
+**Job Executor**
+- Dynamic job handler loading from modules
 - Timeout and retry logic
-- Error handling
+- Error handling and recovery
+- Execution logging and result storage
+- Cleanup after job completion
 
-**Day 5**: Job monitoring
-- Create job status tracking
-- Add execution logs
-- Implement job history
+**Execution APIs**
+- GET /api/v1/jobs/:id/executions - List executions
+- GET /api/v1/executions/:id - Get execution details
+- GET /api/v1/executions/:id/logs - Stream logs
+- DELETE /api/v1/executions/:id - Delete execution
 
-### Week 3: Event System
-**Days 1-2**: Event bus foundation
-- Create EventBusService
-- Implement event registry
-- Add pub/sub mechanism
+### Step 4: Browser Automation
+**Playwright Service**
+- Install Playwright with browsers
+- Create BrowserPoolService for session management
+- Implement browser context pooling
+- Add helper methods (navigate, screenshot, PDF, etc.)
 
-**Days 3-4**: Module integration
-- Connect modules to event bus
-- Implement event listeners
-- Add event emitters
+**Container Sandboxing**
+- Docker/Podman configuration for browser containers
+- Container lifecycle management
+- Resource limits per container
+- Network isolation
+- Automatic cleanup
 
-**Day 5**: Event monitoring
-- Create event history
-- Add event logging
-- Implement event replay
+**Browser APIs for Modules**
+- Expose browser context to job handlers
+- Page navigation and interaction helpers
+- Screenshot and PDF generation
+- Cookie and storage management
+- Network request interception
 
-### Week 4: Frontend & Testing
-**Days 1-2**: Jobs UI
-- Create JobsPage component
-- Job list and details
-- Job creation form
-- Schedule management
+### Step 5: Event System
+**Event Bus Service**
+- Create EventBusService using Redis Pub/Sub
+- Implement event schema validation
+- Event registry for module events
+- Subscription management
 
-**Days 3-4**: Monitoring UI
-- Job execution logs
-- Event history viewer
-- Real-time updates
+**Module Integration**
+- Connect modules to event bus on enable
+- Event listener registration from manifest
+- Event emitter helpers for modules
+- Cross-worker event distribution
 
-**Day 5**: Testing & documentation
-- End-to-end tests
-- API documentation
-- User guide
+**Event APIs**
+- GET /api/v1/events - List events with filters
+- GET /api/v1/events/:name - Get events by name
+- POST /api/v1/events - Publish event (internal)
+- GET /api/v1/events/:name/schema - Get event schema
+
+### Step 6: Frontend Components
+**Jobs Management UI**
+- JobsPage - List all jobs with status
+- JobForm - Create/edit job modal
+- JobDetails - View job configuration
+- ScheduleBuilder - Visual cron expression builder
+- JobExecutionList - Execution history
+
+**Monitoring UI**
+- ExecutionLogs - Real-time log viewer
+- ExecutionDetails - Execution results and errors
+- EventStream - Live event viewer
+- EventHistory - Historical events with filtering
+- SystemHealth - Worker and queue metrics
+
+**Real-time Updates**
+- WebSocket connection for live updates
+- Job status changes
+- Execution progress
+- Event notifications
+
+### Step 7: Testing & Documentation
+**Automated Tests**
+- Unit tests for all services
+- Integration tests for job execution
+- End-to-end tests with browser automation
+- Performance tests for job queue
+
+**Documentation**
+- Job handler development guide
+- Browser automation examples
+- Event system guide
+- API reference documentation
+- Operator manual for UI
 
 ## 📊 Detailed Implementation Steps
 
@@ -357,7 +453,8 @@ enum JobExecutionStatus {
   "bullmq": "^5.0.0",
   "ioredis": "^5.3.0",
   "cron-parser": "^4.9.0",
-  "node-cron": "^3.0.3"
+  "playwright": "^1.40.0",
+  "dockerode": "^4.0.0"
 }
 ```
 
@@ -365,17 +462,24 @@ enum JobExecutionStatus {
 ```json
 {
   "react-syntax-highlighter": "^15.5.0",
-  "date-fns": "^3.0.0"
+  "date-fns": "^3.0.0",
+  "socket.io-client": "^4.6.0"
 }
 ```
 
+**Docker Images**:
+- `mcr.microsoft.com/playwright:v1.40.0-jammy` - Playwright browser container
+
 ## 🔒 Security Considerations
 
-1. **Job Isolation** - Execute jobs in isolated contexts
-2. **Resource Limits** - Prevent resource exhaustion
-3. **Permission Checks** - Verify user can create/execute jobs
-4. **Input Validation** - Validate cron expressions and configs
-5. **Log Sanitization** - Remove sensitive data from logs
+1. **Job Isolation** - Execute jobs in isolated worker processes
+2. **Browser Sandboxing** - Each browser runs in isolated container with resource limits
+3. **Resource Limits** - Prevent resource exhaustion (CPU, memory, network)
+4. **Permission Checks** - Verify user can create/execute jobs
+5. **Input Validation** - Validate cron expressions, configs, and URLs
+6. **Log Sanitization** - Remove sensitive data from logs (credentials, tokens)
+7. **Network Isolation** - Container network restrictions for browser automation
+8. **Secret Management** - Secure storage for API keys and credentials
 
 ## 📈 Success Metrics
 
@@ -383,70 +487,112 @@ enum JobExecutionStatus {
 - ✅ Jobs execute automatically on schedule
 - ✅ Manual job execution works
 - ✅ Job logs are captured and viewable
-- ✅ Events can be published and consumed
+- ✅ Browser automation works (navigate, click, screenshot)
+- ✅ Browser sessions are properly isolated in containers
+- ✅ Events can be published and consumed across modules
 - ✅ UI shows job status and history
 - ✅ Failed jobs are retried correctly
 - ✅ Timeout handling works
+- ✅ Resource limits enforced for jobs and browsers
+- ✅ Real-time job status updates in UI
 
 ## 🎯 Phase 3 Deliverables
 
 ### Backend
-- [ ] Job scheduling system with BullMQ
-- [ ] Worker pool for job execution
-- [ ] Event bus for module communication
-- [ ] 12+ API endpoints for jobs and events
+- [ ] Job scheduling system with BullMQ and cron support
+- [ ] Worker pool for isolated job execution
+- [ ] Browser automation with Playwright and container sandboxing
+- [ ] Event bus for cross-module communication with Redis pub/sub
+- [ ] 15+ API endpoints for jobs, executions, and events
 - [ ] Database schema with 4 new tables
+- [ ] WebSocket support for real-time updates
 
 ### Frontend
-- [ ] Jobs management page
-- [ ] Job execution logs viewer
-- [ ] Event stream viewer
-- [ ] Cron schedule builder
-- [ ] Real-time status updates
+- [ ] Jobs management page with CRUD operations
+- [ ] Job execution logs viewer with real-time streaming
+- [ ] Event stream viewer with filtering
+- [ ] Cron schedule builder (visual editor)
+- [ ] Real-time status updates via WebSocket
+- [ ] System health dashboard
+
+### Browser Automation
+- [ ] Playwright service with session pooling
+- [ ] Docker/Podman container orchestration
+- [ ] Browser context isolation
+- [ ] Screenshot and PDF generation
+- [ ] Network request interception
+- [ ] Cookie and storage management
 
 ### Testing
-- [ ] Automated test suite
-- [ ] Example job handlers
-- [ ] End-to-end verification
-- [ ] Performance tests
+- [ ] Automated test suite for all services
+- [ ] Example job handlers with browser automation
+- [ ] End-to-end verification tests
+- [ ] Performance tests for job queue
+- [ ] Browser automation tests
 
 ### Documentation
-- [ ] API documentation
-- [ ] Job handler guide
-- [ ] Event system guide
-- [ ] Operator manual
+- [ ] API documentation for all endpoints
+- [ ] Job handler development guide
+- [ ] Browser automation examples
+- [ ] Event system guide with schema examples
+- [ ] Operator manual for UI
+- [ ] Container setup guide
 
 ## 🔄 Integration with Phase 2
 
-Jobs and events integrate with the existing module system:
-- Modules define jobs in their manifest
-- Jobs are registered when module is enabled
+Jobs, events, and browser automation integrate with the existing module system:
+- Modules define jobs and event handlers in their manifest
+- Jobs are automatically registered when module is enabled
 - Jobs are unregistered when module is disabled
-- Events allow modules to communicate
-- Module routes can trigger events
+- Events allow modules to communicate asynchronously
+- Module routes can trigger events and queue jobs
+- Browser automation available to all job handlers
+
+**Example Module with Phase 3 Features**:
+```typescript
+// Module job handler with browser automation
+export async function handler(context: JobContext) {
+  const { browser, config, events } = context;
+
+  // Use browser automation
+  const page = await browser.newPage();
+  await page.goto(config.targetUrl);
+  const screenshot = await page.screenshot();
+
+  // Emit event when done
+  await events.emit('scraping.complete', {
+    url: config.targetUrl,
+    timestamp: Date.now(),
+    screenshotSize: screenshot.length
+  });
+
+  return { success: true, screenshot };
+}
+```
 
 ## 🚀 Next Steps After Phase 3
 
-**Phase 4: Consumption Monitor**
-- Specific use case: Monitor data center metrics
-- Endpoint management
-- Time-series data storage
-- Real-time dashboards
+**Phase 4: Consumption Monitor (Specific Use Case)**
+- Build on Phase 3 automation runtime
+- Endpoint management for data center metrics
+- Time-series data storage with TimescaleDB
+- Real-time dashboards for consumption monitoring
+- Alert system based on thresholds
 
 **Phase 5: Production Hardening**
-- Security audit
-- Performance optimization
-- High availability
-- Comprehensive monitoring
+- Security audit and penetration testing
+- Performance optimization and load testing
+- High availability setup (clustering, failover)
+- Comprehensive monitoring and alerting
+- Production deployment guide
 
 ---
 
 ## ✅ Ready to Start?
 
-Phase 3 will add the automation engine that makes this a true automation platform. All groundwork from Phase 1 and 2 is in place.
+Phase 3 adds the complete automation engine with browser automation, making this a production-ready automation platform for data center operations.
 
-**Estimated Completion**: 4 weeks
-**Complexity**: Medium-High
-**Impact**: High (enables core automation features)
+**Complexity**: High (browser automation + container orchestration)
+**Impact**: Very High (enables all core automation features)
 
-Let's build it! 🚀
+All groundwork from Phase 1 and 2 is in place. Let's build it! 🚀
