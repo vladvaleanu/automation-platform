@@ -71,10 +71,6 @@ export default function CreateJobPage() {
 
   const modules: Module[] = (modulesData?.data || []).filter((m: Module) => m.status === 'ENABLED');
 
-  // Debug: Log all modules and filtered modules
-  console.log('All modules from API:', modulesData?.data);
-  console.log('Filtered ENABLED modules:', modules);
-
   // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -97,9 +93,6 @@ export default function CreateJobPage() {
   const handleModuleChange = (moduleId: string) => {
     setFormData({ ...formData, moduleId, handler: '' });
     const module = modules.find(m => m.id === moduleId);
-    console.log('Selected module:', module);
-    console.log('Module manifest:', module?.manifest);
-    console.log('Module jobs:', module?.manifest?.jobs);
     setSelectedModuleHandlers(module?.manifest?.jobs || []);
   };
 
