@@ -24,30 +24,58 @@ if [ -z "$ACCESS_TOKEN" ]; then
 fi
 
 echo "✅ Login successful"
+echo ""
 
-# Get module ID
+# Get module details
 echo "Fetching module details..."
 MODULE_RESPONSE=$(curl -s -X GET "$API_URL/modules" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
-MODULE_ID=$(echo $MODULE_RESPONSE | grep -o '"id":"[^"]*","name":"data-sync-module"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+# Extract module ID and status
+MODULE_ID=$(echo $MODULE_RESPONSE | grep -o '"id":"[^"]*"[^}]*"name":"data-sync-module"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+MODULE_STATUS=$(echo $MODULE_RESPONSE | grep -o '"name":"data-sync-module"[^}]*"status":"[^"]*"' | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
 
 if [ -z "$MODULE_ID" ]; then
   echo "❌ Module not found"
   exit 1
 fi
 
-echo "Found module ID: $MODULE_ID"
+echo "Found module: ID=$MODULE_ID, Status=$MODULE_STATUS"
+echo ""
 
-# Disable the module first
-echo "Disabling module..."
-DISABLE_RESPONSE=$(curl -s -X POST "$API_URL/modules/data-sync-module/disable" \
-  -H "Authorization: Bearer $ACCESS_TOKEN")
+# Handle different statuses
+if [ "$MODULE_STATUS" = "ENABLED" ]; then
+  echo "Disabling module..."
+  DISABLE_RESPONSE=$(curl -s -X POST "$API_URL/modules/data-sync-module/disable" \
+    -H "Authorization: Bearer $ACCESS_TOKEN")
 
-echo "Disable Response: $DISABLE_RESPONSE"
+  DISABLE_SUCCESS=$(echo $DISABLE_RESPONSE | grep -o '"success":[^,]*' | cut -d':' -f2)
 
-# Delete the module
-echo "Deleting module..."
+  if [ "$DISABLE_SUCCESS" = "true" ]; then
+    echo "✅ Module disabled"
+  else
+    echo "⚠️  Disable failed: $DISABLE_RESPONSE"
+  fi
+  echo ""
+fi
+
+if [ "$MODULE_STATUS" = "ENABLED" ] || [ "$MODULE_STATUS" = "INSTALLED" ]; then
+  echo "Uninstalling module..."
+  UNINSTALL_RESPONSE=$(curl -s -X POST "$API_URL/modules/data-sync-module/uninstall" \
+    -H "Authorization: Bearer $ACCESS_TOKEN")
+
+  UNINSTALL_SUCCESS=$(echo $UNINSTALL_RESPONSE | grep -o '"success":[^,]*' | cut -d':' -f2)
+
+  if [ "$UNINSTALL_SUCCESS" = "true" ]; then
+    echo "✅ Module uninstalled"
+  else
+    echo "⚠️  Uninstall failed: $UNINSTALL_RESPONSE"
+  fi
+  echo ""
+fi
+
+# Now delete the module (works for any status)
+echo "Deleting module registration..."
 DELETE_RESPONSE=$(curl -s -X DELETE "$API_URL/modules/$MODULE_ID" \
   -H "Authorization: Bearer $ACCESS_TOKEN")
 
@@ -60,8 +88,9 @@ DELETE_SUCCESS=$(echo $DELETE_RESPONSE | grep -o '"success":[^,]*' | cut -d':' -
 if [ "$DELETE_SUCCESS" = "true" ]; then
   echo "✅ Module unregistered successfully!"
   echo ""
-  echo "You can now run ./examples/register-example-module.sh to register it again."
+  echo "You can now run: bash examples/register-example-module.sh"
 else
   echo "❌ Unregistration failed"
   echo "Error details in response above"
+  exit 1
 fi
