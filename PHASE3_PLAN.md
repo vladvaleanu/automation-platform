@@ -5,15 +5,17 @@
 
 ## 📋 Overview
 
-Phase 3 builds the automation runtime that allows modules to schedule and execute jobs, communicate via events, and run automated browser-based tasks in the data center environment.
+Phase 3 builds the automation runtime that provides core infrastructure services for modules. The platform acts as a **hub for automation modules**, with all business logic contained in modules and the core providing only infrastructure.
+
+**Architecture Philosophy**: Keep core clean - modules contain all business logic and use shared services from core.
 
 ## 🎯 Objectives
 
-1. **Job Scheduling** - Schedule and execute module jobs with cron expressions using BullMQ
-2. **Worker Pool** - Isolated job execution with process isolation, resource limits, and health monitoring
-3. **Browser Automation** - Playwright integration with container sandboxing for web scraping and automation
-4. **Event System** - Redis pub/sub for cross-module messaging with event schema
-5. **Job Monitoring** - Track job execution, logs, and history with management UI
+1. **Job Scheduler** - Job queue (BullMQ), cron scheduling, job execution tracking
+2. **Worker Pool** - Process isolation for running jobs, resource management
+3. **Event Bus** - Cross-module communication, event pub/sub
+4. **Shared Services Library** - Browser automation (Playwright), notifications (email, SMS, webhooks), database helpers, HTTP client utilities, logging utilities
+5. **Job Monitoring UI** - Track job execution, logs, and history with management interface
 
 ## 🏗️ Architecture Components
 
@@ -48,31 +50,43 @@ Phase 3 builds the automation runtime that allows modules to schedule and execut
 - Error recovery
 - Resource cleanup
 
-### 3. Browser Automation System
+### 3. Shared Services Library
 
-**Technology**: Playwright + Docker/Podman
+**Purpose**: Core infrastructure services that modules can use
 
-**Components**:
-- Browser Pool Manager
-- Playwright Service
-- Container Orchestration
-- Session Management
-- Screenshot & PDF Generation
+**Services**:
 
-**Features**:
-- Headless browser automation
+**BrowserService** (Playwright + Docker/Podman)
+- Browser session management with pooling
 - Container sandboxing for security
-- Browser session pooling
-- Auto-scaling based on load
-- Screenshot and PDF capture
+- Screenshot & PDF generation
 - Network request interception
 - Cookie and storage management
+- Resource limits per container
 
-**Sandboxing**:
-- Each browser instance runs in isolated container
-- Resource limits (CPU, memory, network)
-- Automatic cleanup after execution
-- No persistent storage between runs
+**NotificationService**
+- Email notifications (SMTP)
+- SMS notifications (Twilio/AWS SNS)
+- Webhook dispatching
+- Notification templates
+- Delivery tracking
+
+**HttpService**
+- HTTP client with retry logic
+- Request/response logging
+- Timeout management
+- Error handling
+
+**LoggerService**
+- Structured logging (JSON format)
+- Log levels (debug, info, warn, error)
+- Module context tracking
+- Log persistence
+
+**DatabaseService**
+- Query helpers
+- Transaction management
+- Connection pooling
 
 ### 4. Event System
 
@@ -152,26 +166,42 @@ Implementation will follow a logical dependency order. Each component builds on 
 - GET /api/v1/executions/:id/logs - Stream logs
 - DELETE /api/v1/executions/:id - Delete execution
 
-### Step 4: Browser Automation
-**Playwright Service**
+### Step 4: Shared Services Library
+**Core Services Implementation**
+
+Create infrastructure services that modules can use:
+
+**BrowserService** (`services/browser.service.ts`)
 - Install Playwright with browsers
-- Create BrowserPoolService for session management
-- Implement browser context pooling
-- Add helper methods (navigate, screenshot, PDF, etc.)
-
-**Container Sandboxing**
-- Docker/Podman configuration for browser containers
-- Container lifecycle management
-- Resource limits per container
-- Network isolation
-- Automatic cleanup
-
-**Browser APIs for Modules**
-- Expose browser context to job handlers
-- Page navigation and interaction helpers
-- Screenshot and PDF generation
-- Cookie and storage management
+- Browser session pooling
+- Container sandboxing (Docker/Podman)
+- Screenshot & PDF generation
 - Network request interception
+- Resource limits per container
+
+**NotificationService** (`services/notification.service.ts`)
+- Email notifications (SMTP/Nodemailer)
+- SMS notifications (Twilio/AWS SNS)
+- Webhook dispatching
+- Template rendering
+- Delivery tracking
+
+**HttpService** (`services/http.service.ts`)
+- HTTP client wrapper (axios/fetch)
+- Retry logic with exponential backoff
+- Request/response logging
+- Timeout management
+
+**LoggerService** (`services/logger.service.ts`)
+- Structured logging (Pino)
+- Module context tracking
+- Log persistence to database
+- Log level filtering
+
+**DatabaseService** (`services/database.service.ts`)
+- Query helpers for common operations
+- Transaction management
+- Connection pooling (Prisma)
 
 ### Step 5: Event System
 **Event Bus Service**
@@ -447,14 +477,17 @@ enum JobExecutionStatus {
 
 ## 📦 Dependencies to Add
 
-**Backend**:
+**Backend Core Services**:
 ```json
 {
   "bullmq": "^5.0.0",
   "ioredis": "^5.3.0",
   "cron-parser": "^4.9.0",
   "playwright": "^1.40.0",
-  "dockerode": "^4.0.0"
+  "dockerode": "^4.0.0",
+  "nodemailer": "^6.9.0",
+  "axios": "^1.6.0",
+  "socket.io": "^4.6.0"
 }
 ```
 
@@ -463,12 +496,14 @@ enum JobExecutionStatus {
 {
   "react-syntax-highlighter": "^15.5.0",
   "date-fns": "^3.0.0",
-  "socket.io-client": "^4.6.0"
+  "socket.io-client": "^4.6.0",
+  "recharts": "^2.10.0"
 }
 ```
 
 **Docker Images**:
 - `mcr.microsoft.com/playwright:v1.40.0-jammy` - Playwright browser container
+- `redis:7-alpine` - Redis for job queue and pub/sub
 
 ## 🔒 Security Considerations
 
@@ -548,36 +583,124 @@ Jobs, events, and browser automation integrate with the existing module system:
 - Module routes can trigger events and queue jobs
 - Browser automation available to all job handlers
 
-**Example Module with Phase 3 Features**:
+**Example: JobContext Interface**
 ```typescript
-// Module job handler with browser automation
+// Core provides this context to all job handlers
+interface JobContext {
+  // Job configuration
+  config: any;
+
+  // Module information
+  module: {
+    id: string;
+    name: string;
+    config: any;
+  };
+
+  // Core shared services (infrastructure only)
+  services: {
+    browser: BrowserService;      // Playwright automation
+    notifications: NotificationService;  // Email, SMS, webhooks
+    http: HttpService;            // HTTP client with retry
+    logger: Logger;               // Structured logging
+    database: DatabaseService;    // Database helpers
+    events: EventBusService;      // Emit/listen to events
+  };
+}
+```
+
+**Example Module: Electricity Consumption Monitor**
+```typescript
+// modules/electricity-monitor/jobs/scrape-consumption.job.ts
 export async function handler(context: JobContext) {
-  const { browser, config, events } = context;
+  const { services, module } = context;
+  const { browser, events, logger, notifications } = services;
 
-  // Use browser automation
-  const page = await browser.newPage();
-  await page.goto(config.targetUrl);
-  const screenshot = await page.screenshot();
+  logger.info('Starting electricity consumption scraping');
 
-  // Emit event when done
-  await events.emit('scraping.complete', {
-    url: config.targetUrl,
-    timestamp: Date.now(),
-    screenshotSize: screenshot.length
+  // Use browser service from core
+  const browserSession = await browser.createSession({ headless: true });
+
+  try {
+    const page = await browserSession.newPage();
+    await page.goto(module.config.providerUrl);
+
+    // Login to provider
+    await page.fill('#username', module.config.username);
+    await page.fill('#password', module.config.password);
+    await page.click('#login-button');
+
+    // Scrape current consumption
+    const consumptionText = await page.locator('.current-consumption').textContent();
+    const consumption = parseFloat(consumptionText);
+
+    // Take screenshot for audit
+    const screenshot = await page.screenshot();
+
+    // Emit event for other modules
+    await events.emit('electricity.consumption.updated', {
+      value: consumption,
+      unit: 'kWh',
+      timestamp: new Date().toISOString(),
+      source: module.config.providerUrl
+    });
+
+    // Check threshold
+    if (consumption > module.config.alertThreshold) {
+      await events.emit('electricity.consumption.high', {
+        value: consumption,
+        threshold: module.config.alertThreshold,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    logger.info(`Consumption scraped: ${consumption} kWh`);
+    return { success: true, consumption, screenshot };
+
+  } finally {
+    await browserSession.close();
+  }
+}
+```
+
+**Example Module: Alert Manager**
+```typescript
+// modules/alert-manager/events/on-high-consumption.event.ts
+export async function handler(context: EventContext) {
+  const { event, services, module } = context;
+  const { notifications, logger } = services;
+
+  logger.warn('High electricity consumption detected', event.payload);
+
+  // Send email alert using notification service from core
+  await notifications.email({
+    to: module.config.emailRecipients,
+    subject: `⚡ High Electricity Consumption Alert`,
+    body: `
+      Consumption: ${event.payload.value} kWh
+      Threshold: ${event.payload.threshold} kWh
+      Time: ${event.payload.timestamp}
+    `
   });
 
-  return { success: true, screenshot };
+  // Send webhook if configured
+  if (module.config.webhookUrl) {
+    await notifications.webhook({
+      url: module.config.webhookUrl,
+      payload: event.payload
+    });
+  }
 }
 ```
 
 ## 🚀 Next Steps After Phase 3
 
-**Phase 4: Consumption Monitor (Specific Use Case)**
-- Build on Phase 3 automation runtime
-- Endpoint management for data center metrics
-- Time-series data storage with TimescaleDB
-- Real-time dashboards for consumption monitoring
-- Alert system based on thresholds
+**Phase 4: First Production Modules**
+- **Electricity Consumption Monitor** - Scrape electricity consumption values from provider
+- **UPS Monitor** - Monitor UPS status and battery levels
+- **Alert Manager** - Centralized alerting (email, SMS, webhooks)
+- Time-series data storage for historical metrics (TimescaleDB)
+- Real-time dashboards for monitoring
 
 **Phase 5: Production Hardening**
 - Security audit and penetration testing
