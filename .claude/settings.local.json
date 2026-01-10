@@ -29,7 +29,23 @@
       "Bash(git -C \"c:\\\\Users\\\\vlad.valeanu\\\\Desktop\\\\dev\\\\Automation Platform\" push origin main)",
       "Bash(git -C \"/c/Users/vlad.valeanu/Desktop/dev/Automation Platform\" push origin main)",
       "Bash(npm run prisma:generate:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(bash:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npx prisma db execute:*)",
+      "Bash(npx prisma:*)",
+      "Bash(redis-cli:*)",
+      "Bash(docker exec:*)",
+      "Bash(xargs:*)",
+      "Bash(test:*)",
+      "Bash(grep:*)",
+      "Bash(pkill:*)",
+      "Bash(__NEW_LINE__ echo -e \"\\\\n=== Flushing old job data ===\")",
+      "Bash(__NEW_LINE__ echo -e \"\\\\n=== Remaining keys ===\")",
+      "Bash(__NEW_LINE__ echo \"Verifying deletion...\")",
+      "Bash(__NEW_LINE__ echo \"\")",
+      "Bash(__NEW_LINE__ ls -la packages/backend/data/modules/)",
+      "Bash(__NEW_LINE__ echo \"Remaining files:\")"
     ]
   }
 }
