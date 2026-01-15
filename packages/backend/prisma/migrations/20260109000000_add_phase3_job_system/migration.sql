@@ -1,6 +1,6 @@
 -- Phase 3: Job Scheduling System
--- Drop old job table if exists
-DROP TABLE IF EXISTS "jobs";
+-- Drop old job table if exists (CASCADE to drop dependent objects)
+DROP TABLE IF EXISTS "jobs" CASCADE;
 DROP TYPE IF EXISTS "JobStatus";
 
 -- Create new enum for job execution status

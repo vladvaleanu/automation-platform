@@ -5,7 +5,7 @@
 
 ## Overview
 
-Phase 1 establishes the foundational infrastructure for the Automation Platform, including project scaffolding, core API, database setup, authentication, and the frontend shell.
+Phase 1 establishes the foundational infrastructure for the NxForge, including project scaffolding, core API, database setup, authentication, and the frontend shell.
 
 ## Objectives
 
@@ -104,7 +104,7 @@ After completing Phase 1, we move to:
 ## Directory Structure
 
 ```
-automation-platform/
+nxforge/
 ├── packages/
 │   ├── backend/
 │   │   ├── src/
@@ -164,7 +164,7 @@ PORT=4000
 NODE_ENV=development
 
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/automation_platform"
+DATABASE_URL="postgresql://user:password@localhost:5432/nxforge"
 
 # JWT
 JWT_SECRET=your-secret-key

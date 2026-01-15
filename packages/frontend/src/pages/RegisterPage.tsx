@@ -5,6 +5,8 @@
 import { useState, FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../utils/error.utils';
+import { showError, showSuccess } from '../utils/toast.utils';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -15,7 +17,6 @@ export default function RegisterPage() {
     firstName: '',
     lastName: '',
   });
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const { register } = useAuth();
@@ -30,15 +31,14 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
 
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      showError('Passwords do not match');
       return;
     }
 
     if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
+      showError('Password must be at least 8 characters');
       return;
     }
 
@@ -52,9 +52,10 @@ export default function RegisterPage() {
         formData.firstName || undefined,
         formData.lastName || undefined
       );
+      showSuccess('Account created successfully!');
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Registration failed. Please try again.');
+      showError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -65,7 +66,7 @@ export default function RegisterPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-4xl font-bold text-gray-900 dark:text-white">
-            Automation Platform
+            NxForge
           </h1>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             Create your account
@@ -73,12 +74,6 @@ export default function RegisterPage() {
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
-              <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-            </div>
-          )}
-
           <div className="rounded-md shadow-sm space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>

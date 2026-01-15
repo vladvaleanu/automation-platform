@@ -1,6 +1,6 @@
 # Database Quick Start Guide
 
-Fast track guide to get the database running for the Automation Platform.
+Fast track guide to get the database running for the NxForge.
 
 ## Option 1: Docker Compose (Easiest)
 
@@ -27,7 +27,7 @@ cd packages/backend
 cp .env.example .env
 
 # The default DATABASE_URL is already configured for Docker:
-# postgresql://postgres:postgres@localhost:5432/automation_platform
+# postgresql://postgres:postgres@localhost:5432/nxforge
 
 # Apply schema and seed data
 npm run db:setup
@@ -86,11 +86,11 @@ sudo systemctl start postgresql
 psql -U postgres
 
 # Create database
-CREATE DATABASE automation_platform;
+CREATE DATABASE nxforge;
 
 # Create user (optional, for non-postgres user)
 CREATE USER automation_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE automation_platform TO automation_user;
+GRANT ALL PRIVILEGES ON DATABASE nxforge TO automation_user;
 
 # Exit
 \q
@@ -106,10 +106,10 @@ cp .env.example .env
 
 # Edit .env and update DATABASE_URL
 # For postgres user:
-DATABASE_URL="postgresql://postgres:your_password@localhost:5432/automation_platform"
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/nxforge"
 
 # Or for custom user:
-DATABASE_URL="postgresql://automation_user:your_password@localhost:5432/automation_platform"
+DATABASE_URL="postgresql://automation_user:your_password@localhost:5432/nxforge"
 ```
 
 ### 4. Apply Schema
@@ -170,10 +170,10 @@ docker-compose restart postgres
 
 ```bash
 # Using Docker
-docker-compose exec postgres psql -U postgres -d automation_platform
+docker-compose exec postgres psql -U postgres -d nxforge
 
 # Using local PostgreSQL
-psql -U postgres -d automation_platform
+psql -U postgres -d nxforge
 
 # Useful psql commands:
 \dt          # List tables
@@ -190,11 +190,11 @@ psql -U postgres -d automation_platform
 ### Database (Docker)
 - **User**: `postgres`
 - **Password**: `postgres`
-- **Database**: `automation_platform`
+- **Database**: `nxforge`
 - **Port**: `5432`
 
 ### Application Admin
-- **Email**: `admin@automation-platform.local`
+- **Email**: `admin@nxforge.local`
 - **Password**: `admin123`
 
 ⚠️ **Change these in production!**
@@ -234,11 +234,11 @@ brew services list
 
 ```bash
 # Create the database
-createdb -U postgres automation_platform
+createdb -U postgres nxforge
 
 # Or using psql
 psql -U postgres
-CREATE DATABASE automation_platform;
+CREATE DATABASE nxforge;
 ```
 
 ### "Prisma Client not found"
@@ -251,7 +251,7 @@ npm run prisma:generate
 
 Make sure your DATABASE_URL user has the correct permissions:
 ```sql
-GRANT ALL PRIVILEGES ON DATABASE automation_platform TO your_user;
+GRANT ALL PRIVILEGES ON DATABASE nxforge TO your_user;
 ```
 
 ### Port 5432 already in use

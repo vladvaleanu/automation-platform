@@ -4,18 +4,22 @@
  */
 
 import { useState } from 'react';
-import toast from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { modulesApi } from '../api/modules';
 import { Module, ModuleStatus } from '../types/module.types';
-import Layout from '../components/Layout';
+import { getErrorMessage } from '../utils/error.utils';
+import { showError, showSuccess, showInfo } from '../utils/toast.utils';
+import { SkeletonLoader } from '../components/LoadingSpinner';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function ModulesPage() {
   const queryClient = useQueryClient();
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
+  const { confirm, confirmState, handleConfirm, handleClose } = useConfirm();
 
   const handleInstallModule = () => {
-    toast.success('Module installation UI coming soon! For now, modules can be registered via API.');
+    showInfo('Module installation UI coming soon! For now, modules can be registered via API.');
   };
 
   // Fetch modules
@@ -35,19 +39,36 @@ export default function ModulesPage() {
 
   const modules: Module[] = Array.isArray(modulesData) ? modulesData : [];
 
+  // Log module data for debugging
+  console.log('[ModulesPage] Modules data:', modules.map(m => ({ name: m.name, status: m.status })));
+
   // Enable module mutation
   const enableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.enable(name),
-    onSuccess: () => {
+    onSuccess: (data, name) => {
       queryClient.invalidateQueries({ queryKey: ['modules'] });
+      showSuccess(`Module "${name}" enabled successfully`);
+      // Trigger sidebar refresh by reloading module loader
+      window.dispatchEvent(new CustomEvent('modules-changed'));
+    },
+    onError: (error: any, name) => {
+      console.error('Failed to enable module:', error);
+      showError(`Failed to enable module "${name}": ${getErrorMessage(error)}`);
     },
   });
 
   // Disable module mutation
   const disableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.disable(name),
-    onSuccess: () => {
+    onSuccess: (data, name) => {
       queryClient.invalidateQueries({ queryKey: ['modules'] });
+      showSuccess(`Module "${name}" disabled successfully`);
+      // Trigger sidebar refresh by reloading module loader
+      window.dispatchEvent(new CustomEvent('modules-changed'));
+    },
+    onError: (error: any, name) => {
+      console.error('Failed to disable module:', error);
+      showError(`Failed to disable module "${name}": ${getErrorMessage(error)}`);
     },
   });
 
@@ -69,20 +90,46 @@ export default function ModulesPage() {
     );
   };
 
-  const handleToggleModule = async (module: Module) => {
+  const handleToggleModule = (module: Module) => {
+    console.log('[ModulesPage] Toggle module:', module.name, 'current status:', module.status);
+
     if (module.status === ModuleStatus.ENABLED) {
-      await disableMutation.mutateAsync(module.name);
+      // Disabling - use warning variant
+      confirm(
+        () => disableMutation.mutateAsync(module.name),
+        {
+          title: 'Disable Module',
+          message: `Are you sure you want to disable "${module.displayName}"? This will remove its routes and features from the sidebar.`,
+          confirmText: 'Disable',
+          variant: 'warning',
+        }
+      );
     } else if (module.status === ModuleStatus.DISABLED) {
-      await enableMutation.mutateAsync(module.name);
+      // Enabling - use info variant (less risky)
+      confirm(
+        () => enableMutation.mutateAsync(module.name),
+        {
+          title: 'Enable Module',
+          message: `Enable "${module.displayName}"? Its routes and features will be added to the sidebar.`,
+          confirmText: 'Enable',
+          variant: 'info',
+        }
+      );
+    } else {
+      showError(`Cannot toggle module with status: ${module.status}`);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading modules...</p>
+      <div className="p-8">
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+            <SkeletonLoader lines={3} />
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+            <SkeletonLoader lines={5} />
+          </div>
         </div>
       </div>
     );
@@ -90,19 +137,22 @@ export default function ModulesPage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-lg">
-          <h3 className="text-red-800 dark:text-red-200 font-semibold mb-2">Error loading modules</h3>
-          <p className="text-red-600 dark:text-red-400 text-sm">
-            {error instanceof Error ? error.message : 'Unknown error'}
-          </p>
+      <div className="p-8">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-lg">
+            <h3 className="text-red-800 dark:text-red-200 font-semibold mb-2">Error loading modules</h3>
+            <p className="text-red-600 dark:text-red-400 text-sm">
+              {error instanceof Error ? error.message : 'Unknown error'}
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <Layout>
+    <div className="p-8">
+    
       <div className="space-y-6">
         {/* Header */}
       <div className="flex justify-between items-center">
@@ -294,6 +344,19 @@ export default function ModulesPage() {
         </div>
       )}
       </div>
-    </Layout>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleClose}
+        onConfirm={handleConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        variant={confirmState.variant}
+        isLoading={confirmState.isLoading}
+      />
+    </div>
   );
 }

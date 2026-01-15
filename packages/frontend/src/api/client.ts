@@ -3,21 +3,50 @@
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import { formatErrorForLogging } from '../utils/error.utils';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
-export interface ApiResponse<T = any> {
-  success: boolean;
+/**
+ * Success response from backend
+ */
+export interface ApiSuccessResponse<T = any> {
+  success: true;
   data: T;
-  error?: {
+  meta?: {
+    requestId?: string;
+    timestamp?: string;
+    pagination?: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}
+
+/**
+ * Error response from backend
+ */
+export interface ApiErrorResponse {
+  success: false;
+  error: {
     message: string;
+    code?: string;
     statusCode: number;
+    details?: any;
   };
   meta: {
     requestId: string;
     timestamp: string;
+    path?: string;
   };
 }
+
+/**
+ * Union type for API responses
+ */
+export type ApiResponse<T = any> = ApiSuccessResponse<T> | ApiErrorResponse;
 
 class ApiClient {
   private client: AxiosInstance;
@@ -42,10 +71,15 @@ class ApiClient {
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor - handle token refresh
+    // Response interceptor - handle token refresh and logging
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
+        // Log error for debugging (only in development)
+        if (import.meta.env.DEV) {
+          console.error('[API Error]', formatErrorForLogging(error));
+        }
+
         const originalRequest = error.config as any;
 
         // If 401 and not already retried, try to refresh token
@@ -94,24 +128,31 @@ class ApiClient {
     );
   }
 
-  async get<T>(url: string): Promise<ApiResponse<T>> {
-    const response = await this.client.get<ApiResponse<T>>(url);
+  async get<T>(url: string): Promise<ApiSuccessResponse<T>> {
+    const response = await this.client.get<ApiSuccessResponse<T>>(url);
     return response.data;
   }
 
-  async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
-    const response = await this.client.post<ApiResponse<T>>(url, data);
+  async post<T>(url: string, data?: any): Promise<ApiSuccessResponse<T>> {
+    const response = await this.client.post<ApiSuccessResponse<T>>(url, data);
     return response.data;
   }
 
-  async put<T>(url: string, data?: any): Promise<ApiResponse<T>> {
-    const response = await this.client.put<ApiResponse<T>>(url, data);
+  async put<T>(url: string, data?: any): Promise<ApiSuccessResponse<T>> {
+    const response = await this.client.put<ApiSuccessResponse<T>>(url, data);
     return response.data;
   }
 
-  async delete<T>(url: string): Promise<ApiResponse<T>> {
-    const response = await this.client.delete<ApiResponse<T>>(url);
+  async delete<T>(url: string): Promise<ApiSuccessResponse<T>> {
+    const response = await this.client.delete<ApiSuccessResponse<T>>(url);
     return response.data;
+  }
+
+  /**
+   * Get the Axios instance for advanced usage
+   */
+  getClient(): AxiosInstance {
+    return this.client;
   }
 }
 

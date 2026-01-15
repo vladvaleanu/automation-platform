@@ -39,9 +39,20 @@ export const modulesApi = {
 
     const query = searchParams.toString();
     const url = `/modules${query ? `?${query}` : ''}`;
+    console.log("[modulesApi] Calling:", url, "with params:", params);
 
     const response = await apiClient.get<ModulesResponse>(url);
-    return response.data;
+    console.log("[modulesApi] Raw response:", response);
+    console.log("[modulesApi] response.data:", response.data);
+
+    // Defensive check for response structure
+    if (!response || !response.data) {
+      console.error('[modulesApi] Invalid response structure:', response);
+      return [];
+    }
+
+    // The apiClient already unwraps to response.data, so modules are in response.data not response.data.data
+    return Array.isArray(response.data) ? response.data : (response.data.data || []);
   },
 
   /**
@@ -49,7 +60,7 @@ export const modulesApi = {
    */
   get: async (name: string): Promise<Module> => {
     const response = await apiClient.get<ModuleResponse>(`/modules/${name}`);
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -59,7 +70,7 @@ export const modulesApi = {
     const response = await apiClient.post<ModuleResponse>('/modules', {
       manifest,
     });
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -70,7 +81,7 @@ export const modulesApi = {
       `/modules/${name}/status`,
       { status }
     );
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -80,7 +91,9 @@ export const modulesApi = {
     const response = await apiClient.post<ModuleResponse>(
       `/modules/${name}/enable`
     );
-    return response.data;
+    console.log('[modulesApi] Enable response:', response);
+    // apiClient returns the unwrapped response, so response.data is the module
+    return response.data as any as Module;
   },
 
   /**
@@ -90,7 +103,9 @@ export const modulesApi = {
     const response = await apiClient.post<ModuleResponse>(
       `/modules/${name}/disable`
     );
-    return response.data;
+    console.log('[modulesApi] Disable response:', response);
+    // apiClient returns the unwrapped response, so response.data is the module
+    return response.data as any as Module;
   },
 
   /**
@@ -101,7 +116,7 @@ export const modulesApi = {
       `/modules/${name}/config`,
       { config }
     );
-    return response.data;
+    return response.data.data;
   },
 
   /**
@@ -119,6 +134,6 @@ export const modulesApi = {
       '/modules/validate',
       { manifest }
     );
-    return response.data;
+    return response.data.data;
   },
 };

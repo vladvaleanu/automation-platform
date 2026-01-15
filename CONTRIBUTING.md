@@ -1,4 +1,4 @@
-# Contributing to Automation Platform
+# Contributing to NxForge
 
 ## Development Setup
 

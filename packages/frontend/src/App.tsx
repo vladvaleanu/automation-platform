@@ -4,9 +4,10 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import Layout from './components/Layout';
+import OfflineBanner from './components/OfflineBanner';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -16,6 +17,10 @@ import CreateJobPage from './pages/CreateJobPage';
 import ExecutionsPage from './pages/ExecutionsPage';
 import ExecutionDetailPage from './pages/ExecutionDetailPage';
 import EventsPage from './pages/EventsPage';
+import LiveDashboardPage from './pages/LiveDashboardPage';
+import EndpointsPage from './pages/EndpointsPage';
+import ReportsPage from './pages/ReportsPage';
+import HistoryPage from './pages/HistoryPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
@@ -33,42 +38,21 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-              success: {
-                duration: 3000,
-                iconTheme: {
-                  primary: '#10b981',
-                  secondary: '#fff',
-                },
-              },
-              error: {
-                duration: 5000,
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: '#fff',
-                },
-              },
-            }}
-          />
+          <OfflineBanner />
           <BrowserRouter>
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
 
-              {/* Protected routes */}
+              {/* Protected routes with Layout */}
               <Route
                 path="/dashboard"
                 element={
                   <ProtectedRoute>
-                    <DashboardPage />
+                    <Layout>
+                      <DashboardPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -76,7 +60,9 @@ function App() {
                 path="/modules"
                 element={
                   <ProtectedRoute>
-                    <ModulesPage />
+                    <Layout>
+                      <ModulesPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -84,7 +70,9 @@ function App() {
                 path="/jobs"
                 element={
                   <ProtectedRoute>
-                    <JobsPage />
+                    <Layout>
+                      <JobsPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -92,7 +80,9 @@ function App() {
                 path="/jobs/new"
                 element={
                   <ProtectedRoute>
-                    <CreateJobPage />
+                    <Layout>
+                      <CreateJobPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -100,7 +90,9 @@ function App() {
                 path="/jobs/:jobId/executions"
                 element={
                   <ProtectedRoute>
-                    <ExecutionsPage />
+                    <Layout>
+                      <ExecutionsPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -108,7 +100,9 @@ function App() {
                 path="/executions"
                 element={
                   <ProtectedRoute>
-                    <ExecutionsPage />
+                    <Layout>
+                      <ExecutionsPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -116,7 +110,9 @@ function App() {
                 path="/executions/:id"
                 element={
                   <ProtectedRoute>
-                    <ExecutionDetailPage />
+                    <Layout>
+                      <ExecutionDetailPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />
@@ -124,7 +120,51 @@ function App() {
                 path="/events"
                 element={
                   <ProtectedRoute>
-                    <EventsPage />
+                    <Layout>
+                      <EventsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Consumption Monitoring Routes */}
+              <Route
+                path="/consumption/live"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <LiveDashboardPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/consumption/endpoints"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <EndpointsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/consumption/reports"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ReportsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/consumption/history"
+                element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <HistoryPage />
+                    </Layout>
                   </ProtectedRoute>
                 }
               />

@@ -1,13 +1,11 @@
 /**
- * Main entry point for the Automation Platform Backend
+ * Main entry point for the NxForge Backend
  */
 
 import { buildApp } from './app';
 import { env } from './config/env';
 import { logger } from './config/logger';
-import { workerService } from './services/worker.service.js';
-import { jobExecutorService } from './services/job-executor.service.js';
-import { jobSchedulerService } from './services/job-scheduler.service.js';
+import { jobService } from './services/job.service.js';
 import { browserService } from './services/browser.service.js';
 import { databaseService } from './services/database.service.js';
 import { eventBusService } from './services/event-bus.service.js';
@@ -21,25 +19,10 @@ async function start() {
     await eventBusService.initialize();
     logger.info('Event bus initialized');
 
-    // Start worker pool for job execution
-    logger.info('Initializing job execution services...');
-    workerService.setExecutor(jobExecutorService);
-    await workerService.start();
-    logger.info('Worker pool started');
-
-    // Clean up orphaned jobs from Redis
-    logger.info('Cleaning up orphaned jobs...');
-    const cleanup = await jobSchedulerService.cleanupOrphanedJobs();
-    if (cleanup.removed > 0) {
-      logger.info(`Removed ${cleanup.removed} orphaned job(s) from queue`);
-    } else {
-      logger.info('No orphaned jobs found');
-    }
-
-    // Initialize scheduled jobs
-    logger.info('Initializing job schedules...');
-    await jobSchedulerService.initializeSchedules();
-    logger.info('Job schedules initialized');
+    // Initialize job service (includes workers, scheduling, and cleanup)
+    logger.info('Initializing job service...');
+    await jobService.initializeJobs();
+    logger.info('Job service initialized');
 
     await app.listen({
       port: env.PORT,
@@ -57,8 +40,8 @@ async function start() {
       process.on(signal, async () => {
         logger.info(`Received ${signal}, shutting down gracefully...`);
 
-        // Stop worker pool
-        await workerService.stop();
+        // Shutdown job service
+        await jobService.shutdown();
 
         // Disconnect event bus
         await eventBusService.disconnect();

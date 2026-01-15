@@ -111,6 +111,7 @@ model Module {
   dependencies     ModuleDependency[] @relation("DependentModule")
   dependents       ModuleDependency[] @relation("RequiredModule")
 
+  @@index([status])
   @@map("modules")
 }
 
@@ -205,6 +206,8 @@ model JobExecution {
   @@index([jobId])
   @@index([status])
   @@index([startedAt])
+  @@index([jobId, status]) // Composite index for common query pattern
+  @@index([status, startedAt]) // For getting recent executions by status
   @@map("job_executions")
 }
 
@@ -240,6 +243,7 @@ model Event {
   @@index([name])
   @@index([source])
   @@index([createdAt])
+  @@index([name, createdAt]) // Composite for filtering events by name and time
   @@map("events")
 }
 
@@ -250,4 +254,89 @@ enum JobExecutionStatus {
   FAILED
   TIMEOUT
   CANCELLED
+}
+
+// Phase 4: Consumption Monitor
+// Power meter endpoints (PDUs, smart meters, etc.)
+model Endpoint {
+  id           String   @id @default(uuid())
+  name         String   // "Rack A3 PDU" or "Client XYZ Meter"
+  ipAddress    String   // IP address of web interface
+  type         String   // "PDU", "PowerMeter", "SmartPlug", "Custom"
+  vendor       String?  // "APC", "Raritan", "Generic", etc.
+  location     String?  // Physical location (e.g., "Hall 1, Row 3, Rack A3")
+  clientName   String?  // Client identifier if tracking per-client
+
+  // Authentication configuration
+  authType     String   @default("none") // "none", "basic", "form", "custom"
+  authConfig   Json?    // { username, password, loginUrl, etc. }
+
+  // Scraping configuration - supports multi-step navigation
+  scrapingConfig Json   // { steps: [{action, selector, value}], valueSelector, valuePattern }
+
+  enabled      Boolean  @default(true)
+  pollInterval Int      @default(15) // Minutes between readings
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastReadAt   DateTime? // Last successful reading
+
+  // Relations
+  readings     ConsumptionReading[]
+
+  @@index([enabled])
+  @@index([clientName])
+  @@map("endpoints")
+}
+
+// Consumption readings (time-series data) - will be converted to TimescaleDB hypertable
+model ConsumptionReading {
+  id           String   @id @default(uuid())
+  endpointId   String
+  timestamp    DateTime @default(now())
+
+  // Consumption data
+  totalKwh     Float?   // Total cumulative consumption in kWh
+  currentKwh   Float?   // Current month usage (calculated delta)
+
+  // Optional instantaneous metrics
+  voltage      Float?   // Volts
+  current      Float?   // Amperes
+  power        Float?   // Watts
+  powerFactor  Float?   // Power factor (0-1)
+
+  // Metadata
+  success      Boolean  @default(true)
+  errorMessage String?  // Error if scraping failed
+  rawData      Json?    // Store raw scraped data for debugging
+
+  endpoint     Endpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId])
+  @@index([timestamp])
+  @@index([endpointId, timestamp])
+  @@map("consumption_readings")
+}
+
+// ============================================================================
+// Module Migration Tracking
+// ============================================================================
+
+// Tracks which migrations have been applied for each module
+model ModuleMigration {
+  id          String   @id @default(uuid())
+  moduleName  String   // Module identifier (kebab-case)
+  version     String   // Module version when migration was applied
+  filename    String   // Migration filename (e.g., "001_create_tables.sql")
+  checksum    String   // SHA-256 hash of migration file content
+  appliedAt   DateTime @default(now())
+  appliedBy   String?  // User ID who triggered the migration (if available)
+  success     Boolean  @default(true)
+  error       String?  // Error message if migration failed
+  executionTime Int?   // Migration execution time in milliseconds
+
+  @@unique([moduleName, filename])
+  @@index([moduleName])
+  @@index([appliedAt])
+  @@map("module_migrations")
 }

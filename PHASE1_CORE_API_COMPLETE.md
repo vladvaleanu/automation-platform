@@ -124,7 +124,7 @@ Server starts on `http://localhost:4000`
 ### Default Admin Credentials
 
 ```
-Email: admin@automation-platform.local
+Email: admin@nxforge.local
 Password: admin123
 ```
 
@@ -137,7 +137,7 @@ Password: admin123
 curl -X POST http://localhost:4000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "admin@automation-platform.local",
+    "email": "admin@nxforge.local",
     "password": "admin123"
   }'
 ```
@@ -252,7 +252,7 @@ After completing the frontend, Phase 1 will be fully done!
 ### Can't connect to database?
 1. Ensure PostgreSQL is running
 2. Check `DATABASE_URL` in `.env`
-3. Create database: `createdb automation_platform`
+3. Create database: `createdb nxforge`
 
 ### Port 4000 already in use?
 Change `PORT` in `.env` or kill the process:
@@ -272,7 +272,7 @@ npm run prisma:generate
 
 ---
 
-**Repository**: https://github.com/vladvaleanu/automation-platform
+**Repository**: https://github.com/vladvaleanu/nxforge
 **Status**: Phase 1 - Core API ✅ Complete
 **Next**: Phase 1 - Frontend Shell
 

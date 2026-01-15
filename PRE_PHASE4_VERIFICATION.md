@@ -172,7 +172,7 @@
 
 ### PostgreSQL
 - **Status**: Running
-- **Database**: automation_platform
+- **Database**: nxforge
 - **Connection**: Healthy
 
 ### Redis

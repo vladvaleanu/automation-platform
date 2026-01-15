@@ -1,6 +1,6 @@
-# Backend - Automation Platform
+# Backend - NxForge
 
-Core Platform Services & API for the Data Center Automation Platform.
+Core Platform Services & API for NxForge Data Center Automation Platform.
 
 ## Features
 
@@ -52,7 +52,7 @@ This will:
 - Create default admin user
 
 **Default Admin Credentials:**
-- Email: `admin@automation-platform.local`
+- Email: `admin@nxforge.local`
 - Password: `admin123`
 
 ⚠️ **Change the admin password immediately in production!**
@@ -95,7 +95,7 @@ POST /api/v1/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@automation-platform.local",
+  "email": "admin@nxforge.local",
   "password": "admin123"
 }
 ```
@@ -251,7 +251,7 @@ packages/backend/
 If you get connection errors:
 1. Verify PostgreSQL is running
 2. Check `DATABASE_URL` in `.env`
-3. Ensure database exists: `createdb automation_platform`
+3. Ensure database exists: `createdb nxforge`
 
 ### Prisma Client Not Found
 

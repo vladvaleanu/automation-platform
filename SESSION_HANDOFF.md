@@ -29,9 +29,9 @@
 **Steps to Fix**:
 ```bash
 # 1. Unregister the existing module
-cd "c:\Users\vlad.valeanu\Desktop\dev\Automation Platform"
+cd "c:\Users\vlad.valeanu\Desktop\dev\NxForge"
 bash examples/unregister-example-module.sh
-# Enter credentials: admin@automation-platform.local / admin123
+# Enter credentials: admin@nxforge.local / admin123
 
 # 2. Re-register with complete manifest
 bash examples/register-example-module.sh
@@ -270,7 +270,7 @@ npm run dev
 ```
 
 ### Default Credentials
-- **Email**: admin@automation-platform.local
+- **Email**: admin@nxforge.local
 - **Password**: admin123
 
 ---
@@ -373,7 +373,7 @@ npm run build
 ### Database Queries
 ```bash
 # Connect to PostgreSQL
-psql -U automation_user -d automation_platform
+psql -U automation_user -d nxforge
 
 # Check modules
 SELECT id, name, status, manifest FROM "Module";
@@ -409,7 +409,7 @@ redis-cli KEYS 'bull:job-queue:*'
 
 ## Contact & Resources
 
-- **Repository**: https://github.com/vladvaleanu/automation-platform
+- **Repository**: https://github.com/vladvaleanu/nxforge
 - **Documentation**: See `docs/` folder
 - **Phase 3 Docs**: `docs/phase3-job-scheduling.md`
 - **Example Module**: `examples/modules/data-sync-module/`

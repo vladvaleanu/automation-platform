@@ -2,7 +2,7 @@
 
 ## What We've Built
 
-The foundational infrastructure for the Data Center Automation Platform is now ready and pushed to GitHub!
+The foundational infrastructure for the Data Center NxForge is now ready and pushed to GitHub!
 
 ### 🎉 Completed Tasks
 
@@ -36,7 +36,7 @@ The foundational infrastructure for the Data Center Automation Platform is now r
 ## 📂 Project Structure
 
 ```
-automation-platform/
+nxforge/
 ├── .github/workflows/ci.yml    # CI/CD pipeline
 ├── packages/
 │   ├── backend/                # Fastify API server
@@ -57,7 +57,7 @@ Now that the scaffolding is complete, you can:
 ### Option 1: Work on GitHub (Recommended)
 Since you don't have Node.js locally, all development can happen through GitHub:
 
-1. **View your repository**: https://github.com/vladvaleanu/automation-platform
+1. **View your repository**: https://github.com/vladvaleanu/nxforge
 2. **Enable GitHub Codespaces** (if you want a cloud IDE):
    - Go to your repo on GitHub
    - Click "Code" → "Codespaces" → "New codespace"
@@ -129,7 +129,7 @@ The current setup includes:
 
 ---
 
-**Repository**: https://github.com/vladvaleanu/automation-platform
+**Repository**: https://github.com/vladvaleanu/nxforge
 **Status**: Phase 1 - Scaffolding ✅ Complete
 **Next**: Phase 1 - Core API, Database, Auth
 

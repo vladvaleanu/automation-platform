@@ -5,6 +5,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authApi, User } from '../api/auth';
+import { moduleLoaderService } from '../services/module-loader.service';
 
 interface AuthContextType {
   user: User | null;
@@ -29,6 +30,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const response = await authApi.getCurrentUser();
           setUser(response.data.user);
+
+          // Load modules after successful authentication
+          try {
+            await moduleLoaderService.initialize();
+            console.log('[Auth] Modules loaded successfully');
+          } catch (moduleError) {
+            console.error('[Auth] Failed to load modules:', moduleError);
+            // Don't block authentication if module loading fails
+          }
         } catch (error) {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
@@ -49,6 +59,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userResponse = await authApi.getCurrentUser();
     setUser(userResponse.data.user);
+
+    // Load modules after successful login
+    try {
+      await moduleLoaderService.initialize();
+      console.log('[Auth] Modules loaded after login');
+    } catch (moduleError) {
+      console.error('[Auth] Failed to load modules after login:', moduleError);
+      // Don't block login if module loading fails
+    }
   };
 
   const register = async (
@@ -76,6 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     setUser(null);
+
+    // Reset modules on logout
+    moduleLoaderService.reset();
+    console.log('[Auth] Modules reset after logout');
   };
 
   return (

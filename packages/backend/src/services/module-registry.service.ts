@@ -71,41 +71,47 @@ export class ModuleRegistryService {
         };
       }
 
-      // Create new module entry
-      const module = await prisma.module.create({
-        data: {
-          name: manifest.name,
-          version: manifest.version,
-          displayName: manifest.displayName,
-          description: manifest.description,
-          author: manifest.author,
-          manifest: manifest as any,
-          config: options?.config as any,
-          path: options?.path,
-          status: ModuleStatus.REGISTERED,
-        },
-      });
+      // Create new module entry and register dependencies in a transaction
+      const module = await prisma.$transaction(async (tx) => {
+        const newModule = await tx.module.create({
+          data: {
+            name: manifest.name,
+            version: manifest.version,
+            displayName: manifest.displayName,
+            description: manifest.description,
+            author: manifest.author,
+            manifest: manifest as any,
+            config: options?.config as any,
+            path: options?.path,
+            status: ModuleStatus.REGISTERED,
+          },
+        });
 
-      // Register module dependencies if any
-      if (manifest.dependencies?.modules) {
-        for (const [depName, versionRange] of Object.entries(
-          manifest.dependencies.modules
-        )) {
-          const depModule = await prisma.module.findUnique({
-            where: { name: depName },
-          });
+        // Register module dependencies if any
+        if (manifest.dependencies?.modules) {
+          for (const [depName, versionRange] of Object.entries(
+            manifest.dependencies.modules
+          )) {
+            const depModule = await tx.module.findUnique({
+              where: { name: depName },
+            });
 
-          if (depModule) {
-            await prisma.moduleDependency.create({
+            if (!depModule) {
+              throw new Error(`Dependency module '${depName}' not found. Please install it first.`);
+            }
+
+            await tx.moduleDependency.create({
               data: {
-                moduleId: module.id,
+                moduleId: newModule.id,
                 dependsOnId: depModule.id,
                 versionRange,
               },
             });
           }
         }
-      }
+
+        return newModule;
+      });
 
       return {
         success: true,
@@ -332,32 +338,33 @@ export class ModuleRegistryService {
    */
   static async remove(name: string): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if other modules depend on this one
-      const module = await prisma.module.findUnique({
-        where: { name },
-        include: {
-          dependents: {
-            include: {
-              module: true,
+      // Check dependencies and delete in a transaction to prevent race conditions
+      await prisma.$transaction(async (tx) => {
+        // Check if other modules depend on this one
+        const module = await tx.module.findUnique({
+          where: { name },
+          include: {
+            dependents: {
+              include: {
+                module: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      if (!module) {
-        return { success: false, error: 'Module not found' };
-      }
+        if (!module) {
+          throw new Error('Module not found');
+        }
 
-      if (module.dependents.length > 0) {
-        const dependentNames = module.dependents.map((d) => d.module.name).join(', ');
-        return {
-          success: false,
-          error: `Cannot remove module. Other modules depend on it: ${dependentNames}`,
-        };
-      }
+        if (module.dependents.length > 0) {
+          const dependentNames = module.dependents.map((d) => d.module.name).join(', ');
+          throw new Error(`Cannot remove module. Other modules depend on it: ${dependentNames}`);
+        }
 
-      await prisma.module.delete({
-        where: { name },
+        // Delete the module (dependencies will be cascade deleted)
+        await tx.module.delete({
+          where: { name },
+        });
       });
 
       return { success: true };

@@ -7,6 +7,7 @@ import nodemailer, { Transporter } from 'nodemailer';
 import axios from 'axios';
 import { logger } from '../config/logger.js';
 import { env } from '../config/env.js';
+import { TIMEOUTS, HTTP_STATUS } from '../config/constants.js';
 import type {
   NotificationService as INotificationService,
   EmailOptions,
@@ -30,7 +31,7 @@ export class NotificationService implements INotificationService {
     const smtpPort = process.env.SMTP_PORT;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const smtpFrom = process.env.SMTP_FROM || 'noreply@automation-platform.local';
+    const smtpFrom = process.env.SMTP_FROM || 'noreply@nxforge.local';
 
     if (smtpHost && smtpPort && smtpUser && smtpPass) {
       try {
@@ -68,7 +69,7 @@ export class NotificationService implements INotificationService {
 
     try {
       const mailOptions = {
-        from: process.env.SMTP_FROM || 'noreply@automation-platform.local',
+        from: process.env.SMTP_FROM || 'noreply@nxforge.local',
         to: Array.isArray(to) ? to.join(', ') : to,
         subject,
         text: body,
@@ -142,11 +143,11 @@ export class NotificationService implements INotificationService {
         params: method === 'GET' ? payload : undefined,
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'Automation-Platform/1.0',
+          'User-Agent': 'NxForge/1.0',
           ...headers,
         },
-        timeout: 30000, // 30 seconds
-        validateStatus: (status) => status >= 200 && status < 300,
+        timeout: TIMEOUTS.HTTP_REQUEST,
+        validateStatus: (status) => status >= HTTP_STATUS.OK && status < HTTP_STATUS.BAD_REQUEST,
       });
 
       logger.info('Webhook sent successfully', {

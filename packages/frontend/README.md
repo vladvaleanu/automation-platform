@@ -1,6 +1,6 @@
-# Frontend - Automation Platform
+# Frontend - NxForge
 
-Web Control Plane SPA for the Data Center Automation Platform.
+Web Control Plane SPA for NxForge Data Center Automation Platform.
 
 ## Features
 
@@ -100,7 +100,7 @@ The app includes a complete authentication flow:
 For development, use these credentials:
 
 ```
-Email: admin@automation-platform.local
+Email: admin@nxforge.local
 Password: admin123
 ```
 
@@ -198,4 +198,4 @@ After Phase 1, the following will be added:
 
 ---
 
-**Version**: 1.0.0 | **Phase**: 1 - Foundation Complete
+**Version**: 4.0.0 | **Phase**: 4 - Consumption Monitoring Complete

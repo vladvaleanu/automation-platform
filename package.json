@@ -1,7 +1,7 @@
 {
-  "name": "datacenter-automation-platform",
-  "version": "1.0.0",
-  "description": "Modular Data Center Automation Platform - Web Control Plane + Automation Engine",
+  "name": "nxforge",
+  "version": "4.0.0",
+  "description": "NxForge - Modular Data Center Automation & Monitoring Platform",
   "private": true,
   "workspaces": [
     "packages/*"

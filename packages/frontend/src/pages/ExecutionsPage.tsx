@@ -5,7 +5,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import Layout from '../components/Layout';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -83,7 +82,8 @@ export default function ExecutionsPage() {
   };
 
   return (
-    <Layout>
+    <div className="p-8">
+    
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -239,6 +239,7 @@ export default function ExecutionsPage() {
           </>
         )}
       </div>
-    </Layout>
+    
+    </div>
   );
 }

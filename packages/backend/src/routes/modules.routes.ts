@@ -7,6 +7,7 @@ import { ModuleRegistryService } from '../services/module-registry.service';
 import { ModuleLifecycleService } from '../services/module-lifecycle.service';
 import { ModuleStatus } from '../types/module.types';
 import { requireAuth } from '../middleware/auth.middleware';
+import { ERROR_MESSAGES } from '../config/constants';
 
 interface RegisterModuleBody {
   manifest: any; // Will be validated by the service
@@ -126,7 +127,7 @@ export async function modulesRoutes(app: FastifyInstance) {
         return reply.status(404).send({
           success: false,
           error: {
-            message: 'Module not found',
+            message: ERROR_MESSAGES.MODULE_NOT_FOUND,
             statusCode: 404,
           },
         });

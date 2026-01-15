@@ -12,7 +12,7 @@ echo ""
 
 if [ -z "$TOKEN" ]; then
   echo "❌ ERROR: TOKEN environment variable is not set"
-  echo "   Run: export TOKEN=\$(curl -s -X POST ${BASE_URL}/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@automation-platform.local\",\"password\":\"admin123\"}' | jq -r '.data.accessToken')"
+  echo "   Run: export TOKEN=\$(curl -s -X POST ${BASE_URL}/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@nxforge.local\",\"password\":\"admin123\"}' | jq -r '.data.accessToken')"
   exit 1
 fi
 

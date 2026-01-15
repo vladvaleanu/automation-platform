@@ -5,7 +5,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { ModuleRegistryService } from './module-registry.service';
-import { ModuleRouterService } from './module-router.service';
+import { ModuleLoaderService } from './module-loader.service';
 import { ModuleStatus } from '../types/module.types';
 import { prisma } from '../lib/prisma';
 import fs from 'fs/promises';
@@ -133,13 +133,43 @@ export class ModuleLifecycleService {
         }
       }
 
-      // Enable the module
-      await ModuleRegistryService.updateStatus(moduleName, ModuleStatus.ENABLED);
+      // Update status to ENABLED first, so it loads on next restart
+      await prisma.module.update({
+        where: { name: moduleName },
+        data: {
+          status: ModuleStatus.ENABLED,
+          enabledAt: new Date(),
+        },
+      });
 
-      // Enable module in router service
-      ModuleRouterService.enableModule(moduleName, module.manifest);
+      // Try to load the module (will fail if server is already running)
+      try {
+        await ModuleLoaderService.loadModule(moduleName);
+        return { success: true };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load module';
 
-      return { success: true };
+        // Check if it's the Fastify "already booted" error
+        if (errorMessage.includes('Root plugin has already booted')) {
+          return {
+            success: true, // Status was updated successfully
+            error: 'Module enabled successfully. Please restart the server to load the module routes.',
+          };
+        }
+
+        // For other errors, revert status and return error
+        await prisma.module.update({
+          where: { name: moduleName },
+          data: {
+            status: ModuleStatus.DISABLED,
+          },
+        });
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -189,12 +219,20 @@ export class ModuleLifecycleService {
         };
       }
 
-      // Disable module in router service
-      ModuleRouterService.disableModule(moduleName);
+      // Unload the module using ModuleLoaderService
+      try {
+        console.log(`[ModuleLifecycleService] Calling unloadModule for: ${moduleName}`);
+        await ModuleLoaderService.unloadModule(moduleName);
+        console.log(`[ModuleLifecycleService] unloadModule completed successfully for: ${moduleName}`);
+      } catch (error) {
+        console.error(`[ModuleLifecycleService] unloadModule failed for ${moduleName}:`, error);
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to unload module',
+        };
+      }
 
-      // Disable the module
-      await ModuleRegistryService.updateStatus(moduleName, ModuleStatus.DISABLED);
-
+      console.log(`[ModuleLifecycleService] Disable completed successfully for: ${moduleName}`);
       return { success: true };
     } catch (error) {
       return {

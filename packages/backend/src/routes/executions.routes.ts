@@ -6,14 +6,18 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { PAGINATION } from '../config/constants.js';
+import { parsePagination, createPaginationMeta } from '../utils/pagination.utils.js';
+import { createPaginatedResponse } from '../utils/response.utils.js';
+import { buildWhereClause } from '../utils/query.utils.js';
 import type { ListExecutionsQuery } from '../types/job.types.js';
 
 // Validation schemas
 const listExecutionsSchema = z.object({
   jobId: z.string().uuid().optional(),
   status: z.enum(['PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMEOUT', 'CANCELLED']).optional(),
-  page: z.string().regex(/^\d+$/).optional().default('1'),
-  limit: z.string().regex(/^\d+$/).optional().default('50'),
+  page: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_PAGE)),
+  limit: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_LIMIT)),
 });
 
 export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -21,14 +25,12 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/jobs/:jobId/executions', async (request, reply) => {
     const { jobId } = request.params as { jobId: string };
     const query = listExecutionsSchema.parse(request.query);
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(query);
 
-    const where: any = { jobId };
-    if (query.status) {
-      where.status = query.status;
-    }
+    const where = buildWhereClause({
+      jobId,
+      status: query.status,
+    });
 
     const [executions, total] = await Promise.all([
       prisma.jobExecution.findMany({
@@ -49,32 +51,20 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
       prisma.jobExecution.count({ where }),
     ]);
 
-    return reply.send({
-      success: true,
-      data: executions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return reply.send(
+      createPaginatedResponse(executions, createPaginationMeta(page, limit, total))
+    );
   });
 
   // List all executions (across all jobs)
   fastify.get('/', async (request, reply) => {
     const query = listExecutionsSchema.parse(request.query);
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(query);
 
-    const where: any = {};
-    if (query.jobId) {
-      where.jobId = query.jobId;
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
+    const where = buildWhereClause({
+      jobId: query.jobId,
+      status: query.status,
+    });
 
     const [executions, total] = await Promise.all([
       prisma.jobExecution.findMany({
@@ -96,16 +86,9 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
       prisma.jobExecution.count({ where }),
     ]);
 
-    return reply.send({
-      success: true,
-      data: executions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return reply.send(
+      createPaginatedResponse(executions, createPaginationMeta(page, limit, total))
+    );
   });
 
   // Get execution by ID
@@ -122,7 +105,7 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!execution) {
       return reply.status(404).send({
         success: false,
-        error: 'Execution not found',
+        error: 'Execution not found', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 
@@ -150,7 +133,7 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!execution) {
       return reply.status(404).send({
         success: false,
-        error: 'Execution not found',
+        error: 'Execution not found', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 
@@ -177,7 +160,7 @@ export const executionsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!execution) {
       return reply.status(404).send({
         success: false,
-        error: 'Execution not found',
+        error: 'Execution not found', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 

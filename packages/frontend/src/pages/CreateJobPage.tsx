@@ -3,11 +3,11 @@
  */
 
 import { useState } from 'react';
-import toast from 'react-hot-toast';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import Layout from '../components/Layout';
 import axios from 'axios';
+import { getErrorMessage } from '../utils/error.utils';
+import { showError, showSuccess } from '../utils/toast.utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -83,11 +83,11 @@ export default function CreateJobPage() {
       return response.data;
     },
     onSuccess: () => {
-      toast.success('Job created successfully');
+      showSuccess('Job created successfully');
       navigate('/jobs');
     },
     onError: (error: any) => {
-      toast.error(`Failed to create job: ${error.response?.data?.error || error.message}`);
+      showError(`Failed to create job: ${getErrorMessage(error)}`);
     },
   });
 
@@ -122,7 +122,7 @@ export default function CreateJobPage() {
     try {
       JSON.parse(formData.config);
     } catch (err) {
-      toast.error('Invalid JSON in config field');
+      showError('Invalid JSON in config field');
       return;
     }
 
@@ -136,7 +136,8 @@ export default function CreateJobPage() {
   };
 
   return (
-    <Layout>
+    <div className="p-8">
+    
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div>
@@ -422,6 +423,7 @@ export default function CreateJobPage() {
           </form>
         )}
       </div>
-    </Layout>
+    
+    </div>
   );
 }

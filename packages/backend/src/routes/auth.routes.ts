@@ -32,8 +32,16 @@ export async function authRoutes(app: FastifyInstance) {
   /**
    * POST /api/v1/auth/register
    * Register new user
+   * Rate limit: 3 registrations per hour per IP
    */
-  app.post('/register', async (request, reply) => {
+  app.post('/register', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: 60 * 60 * 1000, // 1 hour
+      },
+    },
+  }, async (request, reply) => {
     try {
       const data = registerSchema.parse(request.body);
 
@@ -66,8 +74,16 @@ export async function authRoutes(app: FastifyInstance) {
   /**
    * POST /api/v1/auth/login
    * Authenticate user and get tokens
+   * Stricter rate limit: 5 attempts per minute per IP
    */
-  app.post('/login', async (request, reply) => {
+  app.post('/login', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: 60 * 1000, // 1 minute
+      },
+    },
+  }, async (request, reply) => {
     try {
       const credentials = loginSchema.parse(request.body);
 

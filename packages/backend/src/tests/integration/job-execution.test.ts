@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from '@jest/glo
 import request from 'supertest';
 import { App } from '../../app';
 import { DatabaseService } from '../../services/database.service';
-import { JobQueueService } from '../../services/job-queue.service';
+import { jobService } from '../../services/job.service';
 import path from 'path';
 
 describe('Job Execution Integration Tests', () => {

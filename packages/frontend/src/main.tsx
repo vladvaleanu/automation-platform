@@ -1,5 +1,5 @@
 /**
- * Main entry point for the Automation Platform Frontend
+ * Main entry point for the NxForge Frontend
  */
 
 import React from 'react';

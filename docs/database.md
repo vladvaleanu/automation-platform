@@ -1,6 +1,6 @@
 # Database Architecture
 
-Complete database documentation for the Automation Platform.
+Complete database documentation for the NxForge.
 
 ## Overview
 
@@ -272,7 +272,7 @@ docker-compose logs -f postgres
 
 **Connection String:**
 ```
-postgresql://postgres:postgres@localhost:5432/automation_platform
+postgresql://postgres:postgres@localhost:5432/nxforge
 ```
 
 ### Manual PostgreSQL Setup
@@ -280,10 +280,10 @@ postgresql://postgres:postgres@localhost:5432/automation_platform
 ```bash
 # Install PostgreSQL 16
 # Create database
-createdb automation_platform
+createdb nxforge
 
 # Update .env file
-DATABASE_URL="postgresql://user:password@localhost:5432/automation_platform"
+DATABASE_URL="postgresql://user:password@localhost:5432/nxforge"
 
 # Apply schema
 npm run prisma:push
@@ -302,7 +302,7 @@ The seed script creates:
    - viewer (read-only)
 
 2. **Default Admin User:**
-   - Email: `admin@automation-platform.local`
+   - Email: `admin@nxforge.local`
    - Password: `admin123`
    - Role: admin
 
@@ -349,20 +349,20 @@ For production, consider using **PgBouncer** for external connection pooling.
 
 ```bash
 # Full database backup
-pg_dump -h localhost -U postgres automation_platform > backup.sql
+pg_dump -h localhost -U postgres nxforge > backup.sql
 
 # Schema only
-pg_dump -h localhost -U postgres --schema-only automation_platform > schema.sql
+pg_dump -h localhost -U postgres --schema-only nxforge > schema.sql
 
 # Data only
-pg_dump -h localhost -U postgres --data-only automation_platform > data.sql
+pg_dump -h localhost -U postgres --data-only nxforge > data.sql
 ```
 
 ### Restore
 
 ```bash
 # Restore from backup
-psql -h localhost -U postgres automation_platform < backup.sql
+psql -h localhost -U postgres nxforge < backup.sql
 ```
 
 ## Performance Considerations

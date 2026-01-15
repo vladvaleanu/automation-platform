@@ -5,6 +5,7 @@
 
 import { chromium, firefox, webkit, Browser, BrowserContext, Page } from 'playwright';
 import { logger } from '../config/logger.js';
+import { TIMEOUTS, BROWSER } from '../config/constants.js';
 import type { BrowserService as IBrowserService, BrowserOptions, BrowserSession } from '../types/job.types.js';
 
 export class BrowserService implements IBrowserService {
@@ -19,8 +20,8 @@ export class BrowserService implements IBrowserService {
 
     const {
       headless = true,
-      timeout = 30000,
-      viewport = { width: 1280, height: 720 },
+      timeout = TIMEOUTS.BROWSER_NAVIGATION,
+      viewport = BROWSER.DEFAULT_VIEWPORT,
       browserType = 'chromium',
     } = options as BrowserOptions & { browserType?: 'chromium' | 'firefox' | 'webkit' };
 
@@ -43,7 +44,7 @@ export class BrowserService implements IBrowserService {
       // Create context with viewport settings
       const context = await browser.newContext({
         viewport,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        userAgent: BROWSER.DEFAULT_USER_AGENT,
       });
 
       // Set default timeout

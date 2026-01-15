@@ -167,7 +167,7 @@ npm run dev
 ### 4. Default Credentials
 
 ```
-Email: admin@automation-platform.local
+Email: admin@nxforge.local
 Password: admin123
 ```
 
@@ -203,7 +203,7 @@ Password: admin123
 # Set authentication token
 export TOKEN=$(curl -s -X POST https://your-codespace-url:4000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@automation-platform.local","password":"admin123"}' \
+  -d '{"email":"admin@nxforge.local","password":"admin123"}' \
   | jq -r '.data.accessToken')
 
 # Run comprehensive tests
@@ -254,7 +254,7 @@ curl -X POST http://localhost:4000/api/v1/modules/example-module/disable \
   "version": "1.0.0",
   "displayName": "Example Module",
   "description": "A simple example module",
-  "author": "Automation Platform Team",
+  "author": "NxForge Team",
   "license": "MIT",
 
   "capabilities": {
@@ -420,7 +420,7 @@ Built with:
 ---
 
 **Phase 2 Status**: ✅ **COMPLETE**
-**Repository**: https://github.com/vladvaleanu/automation-platform
+**Repository**: https://github.com/vladvaleanu/nxforge
 **Next Phase**: Automation Runtime (Job Scheduling, Workers, Events)
 **Version**: 2.0.0
 

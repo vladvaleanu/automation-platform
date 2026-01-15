@@ -1,0 +1,44 @@
+{
+  "name": "@nxforge/consumption-monitor",
+  "version": "1.0.0",
+  "description": "Automated power consumption monitoring for colocation racks",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./routes": {
+      "types": "./dist/routes/index.d.ts",
+      "import": "./dist/routes/index.js"
+    },
+    "./jobs": {
+      "types": "./dist/jobs/index.d.ts",
+      "import": "./dist/jobs/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@nxforge/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "author": "NxForge",
+  "license": "MIT",
+  "keywords": [
+    "nxforge",
+    "module",
+    "monitoring",
+    "power-consumption",
+    "automation"
+  ]
+}

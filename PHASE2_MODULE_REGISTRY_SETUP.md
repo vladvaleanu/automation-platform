@@ -124,7 +124,7 @@ curl -X POST https://literate-space-funicular-76q945w7qjcx5xp-4000.app.github.de
       "version": "1.0.0",
       "displayName": "Example Module",
       "description": "A test module for demonstration",
-      "author": "Automation Platform Team",
+      "author": "NxForge Team",
       "capabilities": {
         "api": {
           "routes": [
@@ -175,7 +175,7 @@ Here's a complete example of a module manifest:
   "version": "1.0.0",
   "displayName": "VMware vCenter Module",
   "description": "Manage VMware vCenter infrastructure",
-  "author": "Automation Platform Team",
+  "author": "NxForge Team",
   "license": "MIT",
 
   "capabilities": {

@@ -4,12 +4,12 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: automation-platform-db
+    container_name: nxforge-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: automation_platform
+      POSTGRES_DB: nxforge
     ports:
       - "5432:5432"
     volumes:
@@ -23,7 +23,7 @@ services:
   # Redis (for future phases - job queue, caching)
   redis:
     image: redis:7-alpine
-    container_name: automation-platform-redis
+    container_name: nxforge-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -39,7 +39,7 @@ services:
   # Uncomment to enable
   # prisma-studio:
   #   image: node:20-alpine
-  #   container_name: automation-platform-studio
+  #   container_name: nxforge-studio
   #   working_dir: /app
   #   command: npx prisma studio
   #   ports:
@@ -47,7 +47,7 @@ services:
   #   volumes:
   #     - ./packages/backend:/app
   #   environment:
-  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/automation_platform
+  #     DATABASE_URL: postgresql://postgres:postgres@postgres:5432/nxforge
   #   depends_on:
   #     postgres:
   #       condition: service_healthy
@@ -60,4 +60,4 @@ volumes:
 
 networks:
   default:
-    name: automation-platform-network
+    name: nxforge-network

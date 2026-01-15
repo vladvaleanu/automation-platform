@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { prisma } from '../lib/prisma';
 import { FastifyInstance } from 'fastify';
 import { env } from '../config/env';
+import { SECURITY, ERROR_MESSAGES } from '../config/constants';
 
 export interface LoginCredentials {
   email: string;
@@ -57,13 +58,13 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new Error('Invalid credentials');
+      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      throw new Error('Invalid credentials');
+      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
     }
 
     // Extract roles and permissions
@@ -89,10 +90,51 @@ export class AuthService {
   }
 
   /**
+   * Validate password strength
+   */
+  private validatePassword(password: string): void {
+    if (password.length < SECURITY.PASSWORD_MIN_LENGTH) {
+      throw new Error(`Password must be at least ${SECURITY.PASSWORD_MIN_LENGTH} characters long`);
+    }
+
+    if (password.length > SECURITY.PASSWORD_MAX_LENGTH) {
+      throw new Error(`Password must not exceed ${SECURITY.PASSWORD_MAX_LENGTH} characters`);
+    }
+
+    // Check for at least one lowercase letter
+    if (!/[a-z]/.test(password)) {
+      throw new Error('Password must contain at least one lowercase letter');
+    }
+
+    // Check for at least one uppercase letter
+    if (!/[A-Z]/.test(password)) {
+      throw new Error('Password must contain at least one uppercase letter');
+    }
+
+    // Check for at least one number
+    if (!/[0-9]/.test(password)) {
+      throw new Error('Password must contain at least one number');
+    }
+
+    // Check for common weak passwords
+    const commonPasswords = [
+      'password', 'password123', '12345678', 'qwerty', 'abc123',
+      'admin', 'admin123', 'letmein', 'welcome', 'monkey'
+    ];
+
+    if (commonPasswords.includes(password.toLowerCase())) {
+      throw new Error('Password is too common. Please choose a stronger password');
+    }
+  }
+
+  /**
    * Register new user
    */
   async register(data: RegisterData): Promise<{ userId: string }> {
     const { email, username, password, firstName, lastName } = data;
+
+    // Validate password strength
+    this.validatePassword(password);
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -105,33 +147,40 @@ export class AuthService {
       throw new Error('User with this email or username already exists');
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with higher cost factor for better security
+    const hashedPassword = await bcrypt.hash(password, SECURITY.BCRYPT_ROUNDS);
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        firstName,
-        lastName,
-      },
-    });
-
-    // Assign default 'viewer' role
-    const viewerRole = await prisma.role.findUnique({
-      where: { name: 'viewer' },
-    });
-
-    if (viewerRole) {
-      await prisma.userRole.create({
+    // Create user and assign role in a transaction
+    const user = await prisma.$transaction(async (tx) => {
+      // Create user
+      const newUser = await tx.user.create({
         data: {
-          userId: user.id,
+          email,
+          username,
+          password: hashedPassword,
+          firstName,
+          lastName,
+        },
+      });
+
+      // Assign default 'viewer' role
+      const viewerRole = await tx.role.findUnique({
+        where: { name: 'viewer' },
+      });
+
+      if (!viewerRole) {
+        throw new Error('Default viewer role not found. Please run database migrations.');
+      }
+
+      await tx.userRole.create({
+        data: {
+          userId: newUser.id,
           roleId: viewerRole.id,
         },
       });
-    }
+
+      return newUser;
+    });
 
     return { userId: user.id };
   }

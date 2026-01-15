@@ -92,13 +92,9 @@ export class JobExecutorService {
       throw new Error(`Module ${moduleId} not found`);
     }
 
-    const modulePath = path.resolve(
-      process.cwd(),
-      'data',
-      'modules',
-      module.name,
-      handlerPath
-    );
+    // Use module path from database, or fall back to data/modules/{name}
+    const moduleDir = module.path || path.resolve(process.cwd(), 'data', 'modules', module.name);
+    const modulePath = path.join(moduleDir, handlerPath);
 
     try {
       // Dynamic import of the handler

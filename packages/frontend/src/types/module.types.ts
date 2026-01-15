@@ -1,124 +1,137 @@
 /**
  * Frontend module type definitions
- * Matches backend module types for consistency
+ * Matches @nxforge/core module types (v2 schema)
  */
 
+// ============================================================================
+// Module Manifest Types (matches @nxforge/core)
+// ============================================================================
+
 export interface ModuleManifest {
+  // Identity
   name: string;
   version: string;
   displayName: string;
   description: string;
-  author?: string;
+  author: string;
   license?: string;
-  capabilities?: ModuleCapabilities;
-  dependencies?: ModuleDependencies;
-  config?: ModuleConfig;
-  permissions?: string[];
-  metadata?: ModuleMetadata;
+
+  // Module structure
+  entry: string;
+
+  // Backend configuration
+  routes: RouteDefinition[];
+  jobs: Record<string, JobDefinition>;
+  migrations?: string;
+
+  // Frontend configuration
+  ui?: UIConfiguration;
+
+  // Dependencies
+  dependencies: {
+    [packageName: string]: string;
+  };
+
+  // Permissions
+  permissions: string[];
+
+  // Settings schema
+  settings?: Record<string, SettingDefinition>;
 }
 
-export interface ModuleCapabilities {
-  api?: {
-    routes?: RouteDefinition[];
-  };
-  jobs?: {
-    handlers?: JobDefinition[];
-  };
-  events?: {
-    listeners?: EventListener[];
-    emitters?: EventEmitter[];
-  };
-  ui?: {
-    pages?: UIPage[];
-    components?: UIComponent[];
-    navigation?: NavigationItem[];
-  };
-}
+// ============================================================================
+// Backend Configuration
+// ============================================================================
 
 export interface RouteDefinition {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   path: string;
   handler: string;
-  permissions?: string[];
+  middleware?: string[];
+  description?: string;
 }
 
 export interface JobDefinition {
   name: string;
+  description: string;
   handler: string;
-  schedule?: string;
+  schedule: string | null;
   timeout?: number;
   retries?: number;
+  config?: Record<string, JobConfigField>;
 }
 
-export interface EventListener {
-  event: string;
-  handler: string;
-}
-
-export interface EventEmitter {
-  event: string;
-}
-
-export interface UIPage {
-  path: string;
-  component: string;
-  title: string;
-  icon?: string;
-  permissions?: string[];
-}
-
-export interface UIComponent {
-  name: string;
-  component: string;
-  slot: string;
-}
-
-export interface NavigationItem {
-  label: string;
-  path: string;
-  icon?: string;
-  order?: number;
-  permissions?: string[];
-}
-
-export interface ModuleDependencies {
-  modules?: Record<string, string>;
-  npm?: Record<string, string>;
-  system?: Record<string, string>;
-}
-
-export interface ModuleConfig {
-  schema?: Record<string, ConfigField>;
-  defaults?: Record<string, any>;
-}
-
-export interface ConfigField {
-  type: 'string' | 'number' | 'boolean' | 'password' | 'select';
+export interface JobConfigField {
+  type: 'string' | 'number' | 'boolean' | 'select';
   label: string;
   description?: string;
-  required?: boolean;
-  sensitive?: boolean;
   default?: any;
-  validation?: {
-    min?: number;
-    max?: number;
-    pattern?: string;
-    options?: string[];
-  };
+  required?: boolean;
+  options?: Array<{ label: string; value: any }>;
+  min?: number;
+  max?: number;
+  pattern?: string;
 }
 
-export interface ModuleMetadata {
-  homepage?: string;
-  repository?: string;
-  tags?: string[];
-  category?: string;
+// ============================================================================
+// Frontend Configuration
+// ============================================================================
+
+export interface UIConfiguration {
+  entry: string;
+  sidebar: SidebarConfig;
+  routes: UIRouteDefinition[];
 }
+
+export interface SidebarConfig {
+  label: string;
+  icon: string;
+  order?: number;
+  children: SidebarItem[];
+}
+
+export interface SidebarItem {
+  label: string;
+  path: string;
+  icon?: string;
+  badge?: string;
+}
+
+export interface UIRouteDefinition {
+  path: string;
+  component: string;
+  exact?: boolean;
+}
+
+// ============================================================================
+// Settings Configuration
+// ============================================================================
+
+export interface SettingDefinition {
+  type: 'string' | 'number' | 'boolean' | 'select' | 'json';
+  label: string;
+  description?: string;
+  default?: any;
+  required?: boolean;
+  options?: Array<{ label: string; value: any }>;
+  min?: number;
+  max?: number;
+  pattern?: string;
+  placeholder?: string;
+}
+
+// ============================================================================
+// Module Status & Database Types
+// ============================================================================
 
 export enum ModuleStatus {
   REGISTERED = 'REGISTERED',
   INSTALLING = 'INSTALLING',
-  DISABLED = 'DISABLED',
+  INSTALLED = 'INSTALLED',
+  ENABLING = 'ENABLING',
   ENABLED = 'ENABLED',
+  DISABLING = 'DISABLING',
+  DISABLED = 'DISABLED',
   UPDATING = 'UPDATING',
   REMOVING = 'REMOVING',
   ERROR = 'ERROR',
@@ -130,15 +143,21 @@ export interface Module {
   version: string;
   displayName: string;
   description: string;
+  author?: string;
   status: ModuleStatus;
   manifest: ModuleManifest;
   config?: Record<string, any>;
+  path?: string;
   installedAt?: string;
   enabledAt?: string;
   disabledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
+
+// ============================================================================
+// Frontend-Specific Types
+// ============================================================================
 
 export interface LoadedModule {
   manifest: ModuleManifest;

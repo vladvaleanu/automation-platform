@@ -1,0 +1,42 @@
+{
+  "name": "consumption-monitor",
+  "version": "1.0.0",
+  "displayName": "Consumption Monitor",
+  "description": "Automated power consumption monitoring for colocation racks",
+  "author": "NxForge",
+  "category": "monitoring",
+  "icon": "⚡",
+  "jobs": {
+    "collect-consumption": {
+      "name": "Collect Consumption Data",
+      "description": "Scrapes power meters and collects kWh consumption data from rack endpoints",
+      "handler": "jobs/collect-consumption.js",
+      "schedule": null,
+      "timeout": 300000,
+      "retries": 2,
+      "config": {
+        "batchSize": {
+          "type": "number",
+          "label": "Batch Size",
+          "description": "Number of endpoints to process concurrently",
+          "default": 5,
+          "required": false
+        },
+        "screenshotOnError": {
+          "type": "boolean",
+          "label": "Screenshot on Error",
+          "description": "Capture screenshot when scraping fails (for debugging)",
+          "default": true,
+          "required": false
+        }
+      }
+    }
+  },
+  "permissions": [
+    "database:read",
+    "database:write",
+    "network:outbound"
+  ],
+  "dependencies": [],
+  "settings": {}
+}

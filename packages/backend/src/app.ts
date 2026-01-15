@@ -5,14 +5,13 @@
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { authRoutes } from './routes/auth.routes';
 import { prisma } from './lib/prisma';
-import { ModuleLifecycleService } from './services/module-lifecycle.service';
-import { ModuleRouterService } from './services/module-router.service';
-import { ModuleRegistryService } from './services/module-registry.service';
-import { ModuleStatus } from './types/module.types';
+import { ModuleLoaderService } from './services/module-loader.service';
+import { errorHandler, notFoundHandler } from './middleware/error-handler.middleware';
 
 export async function buildApp(): Promise<FastifyInstance> {
   logger.info('Building Fastify app...');
@@ -23,26 +22,78 @@ export async function buildApp(): Promise<FastifyInstance> {
     requestIdLogLabel: 'requestId',
     disableRequestLogging: false,
     trustProxy: true,
+    // Request size limits
+    bodyLimit: 5 * 1024 * 1024, // 5MB max body size
+    connectionTimeout: 30000, // 30 seconds
+    keepAliveTimeout: 5000,
   });
 
   logger.info('Fastify instance created');
 
-  // Manual CORS implementation (plugin not working in Codespaces)
+  // CORS configuration with origin validation
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    const origin = request.headers.origin || '*';
+    const origin = request.headers.origin;
 
-    reply.header('Access-Control-Allow-Origin', origin);
-    reply.header('Access-Control-Allow-Credentials', 'true');
+    // In development, allow all origins. In production, validate against whitelist
+    const allowedOrigins = env.NODE_ENV === 'development'
+      ? [origin || '*']  // Dev: allow any origin
+      : (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean); // Prod: whitelist
+
+    const isAllowed = env.NODE_ENV === 'development' ||
+      (origin && allowedOrigins.includes(origin));
+
+    if (isAllowed) {
+      reply.header('Access-Control-Allow-Origin', origin || '*');
+      reply.header('Access-Control-Allow-Credentials', 'true');
+    }
+
     reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
     reply.header('Access-Control-Expose-Headers', 'Content-Type, Authorization');
     reply.header('Access-Control-Max-Age', '86400');
+
+    // Security headers
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('X-XSS-Protection', '1; mode=block');
+    reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 
     // Handle preflight
     if (request.method === 'OPTIONS') {
       return reply.status(204).send();
     }
   });
+
+  // Register rate limiting
+  await app.register(rateLimit, {
+    max: env.NODE_ENV === 'development' ? 1000 : 100, // Requests per timeWindow
+    timeWindow: 60 * 1000, // 1 minute window
+    cache: 10000, // Store rate limit info for 10k IPs
+    allowList: env.NODE_ENV === 'development' ? ['127.0.0.1'] : [], // Exempt localhost in dev
+    redis: null, // Use in-memory store (can switch to Redis later for distributed)
+    skipOnError: true, // Don't block requests if rate limiter fails
+    // Custom key generator (use IP address)
+    keyGenerator: (request) => {
+      return request.ip || request.headers['x-real-ip'] as string || request.headers['x-forwarded-for'] as string || 'unknown';
+    },
+    // Error response when rate limit exceeded
+    errorResponseBuilder: (request, context) => {
+      return {
+        success: false,
+        error: 'Too many requests. Please try again later.',
+        statusCode: 429,
+        retryAfter: context.after,
+      };
+    },
+    // Add custom headers
+    addHeaders: {
+      'x-ratelimit-limit': true,
+      'x-ratelimit-remaining': true,
+      'x-ratelimit-reset': true,
+    },
+  });
+
+  logger.info('Rate limiting configured');
 
   // Register JWT
   await app.register(jwt, {
@@ -160,80 +211,25 @@ export async function buildApp(): Promise<FastifyInstance> {
       throw error;
     }
 
-    // Register wildcard route for dynamic module routing
-    app.log.info('Registering module wildcard router...');
-    instance.all('/modules/:moduleName/*', async (request, reply) => {
-      return ModuleRouterService.handleModuleRequest(request as any, reply);
-    });
-    app.log.info('Module wildcard router registered successfully');
+    // NOTE: Endpoints and consumption routes have been moved to the consumption-monitor module
+    // They are now loaded dynamically via the module system (see ModuleLoaderService)
+
   }, { prefix: '/api/v1' });
 
-  // Global error handler
-  app.setErrorHandler((error, request, reply) => {
-    const statusCode = error.statusCode || 500;
+  // Register standardized error handlers (must be after all routes)
+  app.setErrorHandler(errorHandler);
+  app.setNotFoundHandler(notFoundHandler);
 
-    request.log.error({
-      error: {
-        message: error.message,
-        stack: error.stack,
-        statusCode,
-      },
-      request: {
-        method: request.method,
-        url: request.url,
-        headers: request.headers,
-      },
-    });
-
-    reply.status(statusCode).send({
-      success: false,
-      error: {
-        message: error.message,
-        statusCode,
-        ...(env.NODE_ENV === 'development' && { stack: error.stack }),
-      },
-      meta: {
-        requestId: request.id,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  });
-
-  // 404 handler
-  app.setNotFoundHandler((request, reply) => {
-    reply.status(404).send({
-      success: false,
-      error: {
-        message: 'Route not found',
-        statusCode: 404,
-        path: request.url,
-      },
-      meta: {
-        requestId: request.id,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  });
-
+  logger.info('Error handlers registered');
   logger.info('App build complete, returning Fastify instance');
   logger.info(`Registered routes: ${app.printRoutes()}`);
 
-  // Initialize module lifecycle service with app instance
-  ModuleLifecycleService.setApp(app);
+  // Initialize module loader service with Fastify instance
+  ModuleLoaderService.initialize(app);
 
-  // Reload all enabled modules
+  // Load all enabled modules
   try {
-    logger.info('Loading enabled modules...');
-    const enabledModules = await ModuleRegistryService.list({ status: ModuleStatus.ENABLED });
-
-    if (enabledModules.length > 0) {
-      for (const module of enabledModules) {
-        ModuleRouterService.enableModule(module.name, module.manifest);
-      }
-      logger.info(`Successfully loaded ${enabledModules.length} enabled modules`);
-    } else {
-      logger.info('No enabled modules to load');
-    }
+    await ModuleLoaderService.loadEnabledModules();
   } catch (error) {
     logger.error(error, 'Failed to load enabled modules on startup');
     // Don't throw - allow server to start even if module loading fails

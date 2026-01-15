@@ -1,252 +1,534 @@
 /**
- * Module loader service
- * Handles dynamic loading and unloading of module routes, jobs, and event handlers
+ * Module Loader Service
+ * Handles dynamic loading and unloading of modules at runtime
  */
 
 import { FastifyInstance } from 'fastify';
-import path from 'path';
-import { ModuleManifest, RouteDefinition } from '../types/module.types';
-import { logger } from '../config/logger';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { ModuleValidatorService } from '@nxforge/core/services';
+import type { ModuleManifest } from '@nxforge/core/types';
+import { prisma } from '../lib/prisma.js';
+import { logger } from '../config/logger.js';
+import { MigrationRunnerService } from './migration-runner.service.js';
+import { jobExecutorService } from './job-executor.service.js';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface LoadedModule {
-  name: string;
-  routes: string[]; // List of registered route paths
-  routePrefix: string;
+  manifest: ModuleManifest;
+  plugin: any;
+  registeredRoutes: string[];
+  registeredJobs: string[];
 }
 
+// ============================================================================
+// Module Loader Service
+// ============================================================================
+
 export class ModuleLoaderService {
-  private static loadedModules = new Map<string, LoadedModule>();
-  private static MODULES_DIR = path.join(process.cwd(), 'modules');
+  private static loadedModules: Map<string, LoadedModule> = new Map();
+  private static app: any = null;
 
   /**
-   * Load a module's routes into the Fastify instance
-   * Routes are namespaced under /api/v1/modules/:moduleName
+   * Initialize the module loader with Fastify instance
    */
-  static async loadModuleRoutes(
-    app: FastifyInstance,
-    moduleName: string,
-    manifest: ModuleManifest
-  ): Promise<{ success: boolean; error?: string }> {
+  static initialize(app: any): void {
+    this.app = app;
+    logger.info('Module loader initialized');
+  }
+
+  /**
+   * Load a module by name
+   */
+  static async loadModule(moduleName: string): Promise<void> {
+    if (!this.app) {
+      throw new Error('Module loader not initialized. Call initialize() first.');
+    }
+
+    logger.info(`Loading module: ${moduleName}`);
+
     try {
-      // Check if module is already loaded
+      // Get module from database
+      const moduleRecord = await prisma.module.findUnique({
+        where: { name: moduleName },
+      });
+
+      if (!moduleRecord) {
+        throw new Error(`Module not found: ${moduleName}`);
+      }
+
+      // Check if already loaded
       if (this.loadedModules.has(moduleName)) {
-        return {
-          success: false,
-          error: `Module ${moduleName} routes are already loaded`,
-        };
+        logger.warn(`Module ${moduleName} is already loaded`);
+        return;
       }
 
-      const routePrefix = `/api/v1/modules/${moduleName}`;
-      const loadedRoutes: string[] = [];
+      // Read and validate manifest
+      const manifest = await this.readManifest(moduleName, moduleRecord.path || undefined);
+      await this.validateManifest(manifest);
 
-      // Load API routes if defined
-      if (manifest.capabilities?.api?.routes) {
-        logger.info(`Loading routes for module: ${moduleName}`);
+      // Get module directory
+      const moduleDir = moduleRecord.path || path.join(process.cwd(), '..', '..', 'modules', moduleName);
 
-        // Register module routes under a prefix
-        await app.register(async (moduleApp) => {
-          for (const route of manifest.capabilities.api!.routes) {
-            try {
-              // Create a simple route handler
-              // In a real implementation, this would dynamically import the handler
-              const handler = this.createRouteHandler(moduleName, route);
-
-              // Register the route
-              switch (route.method) {
-                case 'GET':
-                  moduleApp.get(route.path, handler);
-                  break;
-                case 'POST':
-                  moduleApp.post(route.path, handler);
-                  break;
-                case 'PUT':
-                  moduleApp.put(route.path, handler);
-                  break;
-                case 'PATCH':
-                  moduleApp.patch(route.path, handler);
-                  break;
-                case 'DELETE':
-                  moduleApp.delete(route.path, handler);
-                  break;
-              }
-
-              loadedRoutes.push(`${route.method} ${routePrefix}${route.path}`);
-              logger.info(`Registered route: ${route.method} ${routePrefix}${route.path}`);
-            } catch (error) {
-              logger.error(error, `Failed to load route: ${route.method} ${route.path}`);
-            }
-          }
-        }, { prefix: routePrefix });
-
-        logger.info(`Successfully loaded ${loadedRoutes.length} routes for ${moduleName}`);
+      // Run database migrations if specified
+      if (manifest.migrations) {
+        await this.runMigrations(moduleName, moduleRecord.version, manifest, moduleDir);
       }
+
+      // Build module context
+      const moduleContext = this.buildModuleContext(moduleName, moduleRecord.version);
+
+      // Load module plugin
+      const plugin = await this.loadModulePlugin(moduleName, manifest, moduleDir);
+
+      // Register routes
+      const registeredRoutes = await this.registerRoutes(moduleName, manifest, moduleDir, moduleContext);
+
+      // Register jobs
+      const registeredJobs = await this.registerJobs(moduleName, manifest, moduleRecord.id);
 
       // Store loaded module info
       this.loadedModules.set(moduleName, {
-        name: moduleName,
-        routes: loadedRoutes,
-        routePrefix,
+        manifest,
+        plugin,
+        registeredRoutes,
+        registeredJobs,
       });
 
-      return { success: true };
-    } catch (error) {
-      logger.error(error, `Failed to load module routes: ${moduleName}`);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      // Update module status in database
+      await prisma.module.update({
+        where: { name: moduleName },
+        data: {
+          status: 'ENABLED',
+          enabledAt: new Date(),
+        },
+      });
+
+      logger.info(`Module loaded successfully: ${moduleName}`, {
+        routes: registeredRoutes.length,
+        jobs: registeredJobs.length,
+      });
+    } catch (error: any) {
+      logger.error(`Failed to load module ${moduleName}:`, error);
+
+      // Don't update status if it's a Fastify "already booted" error
+      // The status was already set to ENABLED by the caller and should remain
+      const errorMessage = error.message || '';
+      if (!errorMessage.includes('Root plugin has already booted')) {
+        // Update status to REGISTERED for other errors
+        await prisma.module.update({
+          where: { name: moduleName },
+          data: { status: 'REGISTERED' },
+        }).catch(() => {});
+      }
+
+      throw error;
     }
   }
 
   /**
-   * Unload a module's routes
-   * Note: Fastify doesn't support true route removal, so this marks them as unloaded
-   * A server restart would be needed to fully remove routes
+   * Unload a module
    */
-  static async unloadModuleRoutes(
-    moduleName: string
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const loadedModule = this.loadedModules.get(moduleName);
+  static async unloadModule(moduleName: string): Promise<void> {
+    logger.info(`Unloading module: ${moduleName}`);
 
-      if (!loadedModule) {
-        return {
-          success: false,
-          error: `Module ${moduleName} routes are not loaded`,
-        };
+    try {
+      // Get module record from database first
+      const moduleRecord = await prisma.module.findUnique({ where: { name: moduleName } });
+      if (!moduleRecord) {
+        throw new Error(`Module ${moduleName} not found in database`);
       }
+
+      const loadedModule = this.loadedModules.get(moduleName);
+      if (!loadedModule) {
+        logger.warn(`Module ${moduleName} is not loaded in memory, only updating database status`);
+        // Module not loaded in memory, but still update database status
+        await prisma.module.update({
+          where: { name: moduleName },
+          data: {
+            status: 'DISABLED',
+            disabledAt: new Date(),
+          },
+        });
+
+        // Clear job handler cache for this module
+        jobExecutorService.clearCache(moduleRecord.id);
+        logger.info(`Cleared job handler cache for module: ${moduleName}`);
+
+        logger.info(`Module status updated to DISABLED: ${moduleName}`);
+        return;
+      }
+
+      // Unregister jobs
+      await this.unregisterJobs(moduleRecord.id, loadedModule.registeredJobs);
+
+      // Clear job handler cache for this module
+      jobExecutorService.clearCache(moduleRecord.id);
+      logger.info(`Cleared job handler cache for module: ${moduleName}`);
+
+      // Note: Fastify doesn't support dynamic route removal
+      // Routes will remain but we mark the module as disabled
 
       // Remove from loaded modules
       this.loadedModules.delete(moduleName);
 
-      logger.info(`Unloaded routes for module: ${moduleName}`);
-      logger.warn(
-        `Note: Routes are marked as unloaded but still exist in Fastify. Server restart recommended.`
-      );
+      // Update module status
+      await prisma.module.update({
+        where: { name: moduleName },
+        data: {
+          status: 'DISABLED',
+          disabledAt: new Date(),
+        },
+      });
 
-      return { success: true };
-    } catch (error) {
-      logger.error(error, `Failed to unload module routes: ${moduleName}`);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
+      logger.info(`Module unloaded successfully: ${moduleName}`);
+    } catch (error: any) {
+      logger.error(`Failed to unload module ${moduleName}:`, error);
+      throw error;
     }
   }
 
   /**
-   * Create a route handler for a module route
-   * Dynamically imports the handler from the module directory
+   * Reload a module (unload then load)
    */
-  private static createRouteHandler(moduleName: string, route: RouteDefinition) {
-    return async (request: any, reply: any) => {
-      // Check if module is still loaded
-      if (!this.loadedModules.has(moduleName)) {
-        return reply.status(503).send({
-          success: false,
-          error: {
-            message: `Module ${moduleName} is not currently loaded`,
-            statusCode: 503,
-          },
-        });
-      }
+  static async reloadModule(moduleName: string): Promise<void> {
+    logger.info(`Reloading module: ${moduleName}`);
+    await this.unloadModule(moduleName);
+    await this.loadModule(moduleName);
+  }
 
+  /**
+   * Load all enabled modules from database
+   */
+  static async loadEnabledModules(): Promise<void> {
+    logger.info('Loading enabled modules...');
+
+    const enabledModules = await prisma.module.findMany({
+      where: {
+        status: { in: ['ENABLED', 'REGISTERED'] },
+      },
+    });
+
+    if (enabledModules.length === 0) {
+      logger.info('No enabled modules to load');
+      return;
+    }
+
+    logger.info(`Found ${enabledModules.length} enabled module(s)`);
+
+    for (const module of enabledModules) {
       try {
-        // Build the full path to the handler
-        const modulePath = this.getModulePath(moduleName);
-        const handlerPath = path.join(modulePath, route.handler);
-
-        // Dynamically import the handler
-        // Note: In production, handlers should be properly built/transpiled
-        const handlerModule = await import(handlerPath);
-
-        // Get the handler function (try common export patterns)
-        const handler =
-          handlerModule.default ||
-          handlerModule[this.getHandlerFunctionName(route.handler)] ||
-          Object.values(handlerModule)[0];
-
-        if (typeof handler !== 'function') {
-          throw new Error(`Handler at ${route.handler} is not a function`);
-        }
-
-        // Execute the handler
-        return await handler(request, reply);
-      } catch (error) {
-        logger.error(error, `Failed to execute handler for ${moduleName}:${route.path}`);
-
-        return reply.status(500).send({
-          success: false,
-          error: {
-            message: `Failed to execute module handler: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            statusCode: 500,
-          },
-        });
+        await this.loadModule(module.name);
+      } catch (error: any) {
+        logger.error(`Failed to load module ${module.name}:`, error.message);
+        // Continue loading other modules
       }
-    };
+    }
   }
 
   /**
-   * Extract handler function name from handler path
-   * e.g., "handlers/hello.handler.js" -> "helloHandler"
+   * Get loaded module info
    */
-  private static getHandlerFunctionName(handlerPath: string): string {
-    const filename = path.basename(handlerPath, path.extname(handlerPath));
-    const parts = filename.split('.');
-    const baseName = parts[0];
-
-    // Convert kebab-case to camelCase and append "Handler"
-    const camelCase = baseName.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
-    return `${camelCase}Handler`;
+  static getLoadedModule(moduleName: string): LoadedModule | undefined {
+    return this.loadedModules.get(moduleName);
   }
 
   /**
-   * Get list of loaded modules
+   * Get all loaded modules
    */
-  static getLoadedModules(): LoadedModule[] {
-    return Array.from(this.loadedModules.values());
+  static getLoadedModules(): Map<string, LoadedModule> {
+    return this.loadedModules;
   }
 
   /**
-   * Check if a module is loaded
+   * Check if module is loaded
    */
   static isModuleLoaded(moduleName: string): boolean {
     return this.loadedModules.has(moduleName);
   }
 
+  // ============================================================================
+  // Private Helper Methods
+  // ============================================================================
+
   /**
-   * Get module info
+   * Read module manifest from filesystem
    */
-  static getModuleInfo(moduleName: string): LoadedModule | undefined {
-    return this.loadedModules.get(moduleName);
+  private static async readManifest(
+    moduleName: string,
+    modulePath?: string
+  ): Promise<ModuleManifest> {
+    const baseDir = modulePath || path.join(process.cwd(), 'modules', moduleName);
+    const manifestPath = path.join(baseDir, 'manifest.json');
+
+    try {
+      const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+      const manifest = JSON.parse(manifestContent);
+      return manifest as ModuleManifest;
+    } catch (error: any) {
+      throw new Error(`Failed to read manifest for ${moduleName}: ${error.message}`);
+    }
   }
 
   /**
-   * Get module directory path
+   * Validate module manifest
    */
-  static getModulePath(moduleName: string): string {
-    return path.join(this.MODULES_DIR, moduleName);
+  private static async validateManifest(manifest: ModuleManifest): Promise<void> {
+    const result = ModuleValidatorService.validate(manifest);
+
+    if (!result.valid) {
+      const errorMessage = `Manifest validation failed:\n${result.errors.join('\n')}`;
+      throw new Error(errorMessage);
+    }
+
+    if (result.warnings.length > 0) {
+      logger.warn(`Manifest validation warnings for ${manifest.name}:`, result.warnings);
+    }
   }
 
   /**
-   * Reload all enabled modules
-   * This would be called on server startup
+   * Validate path to prevent directory traversal attacks
    */
-  static async reloadAllModules(
-    app: FastifyInstance,
-    enabledModules: Array<{ name: string; manifest: ModuleManifest }>
-  ): Promise<void> {
-    logger.info(`Reloading ${enabledModules.length} enabled modules...`);
+  private static validatePath(basePath: string, targetPath: string): void {
+    const resolvedBase = path.resolve(basePath);
+    const resolvedTarget = path.resolve(basePath, targetPath);
 
-    for (const module of enabledModules) {
+    // Ensure the resolved target path starts with the base path
+    if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
+      throw new Error(`Path traversal detected: ${targetPath} attempts to access outside module directory`);
+    }
+
+    // Additional check: ensure no '..' in the normalized path
+    const normalizedPath = path.normalize(targetPath);
+    if (normalizedPath.includes('..')) {
+      throw new Error(`Invalid path: ${targetPath} contains directory traversal sequences`);
+    }
+  }
+
+  /**
+   * Load module plugin (backend entry point)
+   */
+  private static async loadModulePlugin(
+    moduleName: string,
+    manifest: ModuleManifest,
+    moduleDir: string
+  ): Promise<any> {
+    // Validate manifest.entry to prevent path traversal
+    this.validatePath(moduleDir, manifest.entry);
+
+    const pluginPath = path.join(moduleDir, manifest.entry);
+
+    try {
+      // Dynamic import of the module
+      const plugin = await import(pluginPath);
+      return plugin.default || plugin;
+    } catch (error: any) {
+      throw new Error(`Failed to load plugin for ${moduleName}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Register module routes with Fastify
+   */
+  private static async registerRoutes(
+    moduleName: string,
+    manifest: ModuleManifest,
+    moduleDir: string,
+    moduleContext: any
+  ): Promise<string[]> {
+    if (!this.app) {
+      throw new Error('Fastify app not initialized');
+    }
+
+    const registeredRoutes: string[] = [];
+    const prefix = `/api/v1/m/${moduleName}`;
+
+    for (const route of manifest.routes) {
       try {
-        await this.loadModuleRoutes(app, module.name, module.manifest);
-        logger.info(`Reloaded module: ${module.name}`);
-      } catch (error) {
-        logger.error(error, `Failed to reload module: ${module.name}`);
+        // Validate route.handler to prevent path traversal
+        this.validatePath(moduleDir, route.handler);
+
+        const handlerPath = path.join(moduleDir, route.handler);
+
+        // Import route handler
+        const handler = await import(handlerPath);
+        const routeFunction = handler.default || handler.registerRoutes || handler;
+
+        // Register as Fastify plugin with prefix and context
+        await this.app.register(
+          async (fastify: any) => {
+            await routeFunction(fastify, moduleContext);
+          },
+          { prefix }
+        );
+
+        const fullPath = `${route.method} ${prefix}${route.path}`;
+        registeredRoutes.push(fullPath);
+
+        logger.debug(`Registered route: ${fullPath}`);
+      } catch (error: any) {
+        logger.error(`Failed to register route ${route.method} ${route.path}:`, error);
+        throw error;
       }
     }
 
-    logger.info('Module reload complete');
+    return registeredRoutes;
+  }
+
+  /**
+   * Register module jobs
+   */
+  private static async registerJobs(
+    moduleName: string,
+    manifest: ModuleManifest,
+    moduleId: string
+  ): Promise<string[]> {
+    const registeredJobs: string[] = [];
+
+    for (const [jobName, jobDef] of Object.entries(manifest.jobs)) {
+      try {
+        // Check if job already exists
+        const existingJob = await prisma.job.findFirst({
+          where: {
+            moduleId: moduleId,
+            name: jobName,
+          },
+        });
+
+        if (existingJob) {
+          // Update existing job
+          await prisma.job.update({
+            where: { id: existingJob.id },
+            data: {
+              description: jobDef.description,
+              handler: jobDef.handler,
+              schedule: jobDef.schedule,
+              timeout: jobDef.timeout || 300000,
+              retries: jobDef.retries || 3,
+              config: (jobDef.config as any) || null,
+              enabled: true,
+            },
+          });
+        } else {
+          // Create new job
+          await prisma.job.create({
+            data: {
+              moduleId: moduleId,
+              name: jobName,
+              description: jobDef.description,
+              handler: jobDef.handler,
+              schedule: jobDef.schedule,
+              timeout: jobDef.timeout || 300000,
+              retries: jobDef.retries || 3,
+              config: (jobDef.config as any) || null,
+              enabled: true,
+            },
+          });
+        }
+
+        registeredJobs.push(jobName);
+        logger.debug(`Registered job: ${moduleName}.${jobName}`);
+      } catch (error: any) {
+        logger.error(`Failed to register job ${jobName}:`, error);
+        // Continue with other jobs
+      }
+    }
+
+    return registeredJobs;
+  }
+
+  /**
+   * Unregister module jobs
+   */
+  private static async unregisterJobs(
+    moduleId: string,
+    jobNames: string[]
+  ): Promise<void> {
+    for (const jobName of jobNames) {
+      try {
+        await prisma.job.updateMany({
+          where: {
+            moduleId: moduleId,
+            name: jobName,
+          },
+          data: {
+            enabled: false,
+          },
+        });
+
+        logger.debug(`Unregistered job: ${jobName}`);
+      } catch (error: any) {
+        logger.error(`Failed to unregister job ${jobName}:`, error);
+      }
+    }
+  }
+
+  /**
+   * Run database migrations for a module
+   */
+  private static async runMigrations(
+    moduleName: string,
+    moduleVersion: string,
+    manifest: ModuleManifest,
+    moduleDir: string
+  ): Promise<void> {
+    if (!manifest.migrations) {
+      return;
+    }
+
+    const migrationsDir = path.join(moduleDir, manifest.migrations);
+
+    logger.info(`Running migrations for module: ${moduleName}`);
+
+    try {
+      const results = await MigrationRunnerService.runModuleMigrations(
+        moduleName,
+        moduleVersion,
+        migrationsDir
+      );
+
+      const failed = results.filter(r => !r.success);
+      if (failed.length > 0) {
+        throw new Error(
+          `${failed.length} migration(s) failed: ${failed.map(r => r.filename).join(', ')}`
+        );
+      }
+
+      if (results.length > 0) {
+        logger.info(`Applied ${results.length} migration(s) for ${moduleName}`);
+      }
+    } catch (error: any) {
+      logger.error(`Migration failed for ${moduleName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get module statistics
+   */
+  static getStats() {
+    return {
+      loadedModules: this.loadedModules.size,
+      modules: Array.from(this.loadedModules.keys()),
+    };
+  }
+
+  /**
+   * Build module context with services
+   */
+  private static buildModuleContext(moduleName: string, moduleVersion: string): any {
+    return {
+      moduleName,
+      moduleVersion,
+      services: {
+        prisma,
+        logger,
+        // Add other services as needed
+      },
+      config: {}, // Module-specific config would go here
+    };
   }
 }

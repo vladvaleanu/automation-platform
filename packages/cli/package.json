@@ -1,11 +1,11 @@
 {
-  "name": "@automation-platform/cli",
+  "name": "@nxforge/cli",
   "version": "1.0.0",
   "description": "CLI tools for platform management",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "automation-platform": "./dist/index.js"
+    "nxforge": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",

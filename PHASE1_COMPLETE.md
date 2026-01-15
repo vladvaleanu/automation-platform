@@ -1,6 +1,6 @@
 # 🎉 Phase 1: Foundation - COMPLETE!
 
-**Congratulations!** Phase 1 of the Data Center Automation Platform is now fully complete.
+**Congratulations!** Phase 1 of the Data Center NxForge is now fully complete.
 
 ## ✅ What We've Built
 
@@ -38,7 +38,7 @@
 ## 📊 Repository Structure
 
 ```
-automation-platform/
+nxforge/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # CI/CD pipeline
@@ -100,8 +100,8 @@ automation-platform/
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/vladvaleanu/automation-platform.git
-cd automation-platform
+git clone https://github.com/vladvaleanu/nxforge.git
+cd nxforge
 
 # 2. Start database services
 docker-compose up -d
@@ -133,7 +133,7 @@ npm run dev
 ### Default Credentials
 
 ```
-Email: admin@automation-platform.local
+Email: admin@nxforge.local
 Password: admin123
 ```
 
@@ -213,7 +213,7 @@ Password: admin123
 - [Database Guide](./docs/database.md)
 - [Database Quick Start](./docs/database-quickstart.md)
 - [Phase 1 Guide](./docs/phase1-foundation.md)
-- [Architecture Doc](./DataCenter_Automation_Platform_Architecture.docx)
+- [Architecture Doc](./DataCenter_NxForge_Architecture.docx)
 
 ## 🧪 Testing
 
@@ -311,7 +311,7 @@ Built with:
 ---
 
 **Phase 1 Status**: ✅ **COMPLETE**
-**Repository**: https://github.com/vladvaleanu/automation-platform
+**Repository**: https://github.com/vladvaleanu/nxforge
 **Next Phase**: Module System
 **Version**: 1.0.0
 

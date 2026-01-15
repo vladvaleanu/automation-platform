@@ -7,6 +7,10 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { eventBusService } from '../services/event-bus.service.js';
+import { PAGINATION } from '../config/constants.js';
+import { parsePagination, createPaginationMeta } from '../utils/pagination.utils.js';
+import { createPaginatedResponse, createSuccessResponse } from '../utils/response.utils.js';
+import { buildWhereClause } from '../utils/query.utils.js';
 import type { ListEventsQuery } from '../types/job.types.js';
 
 // Validation schemas
@@ -20,8 +24,8 @@ const listEventsSchema = z.object({
   name: z.string().optional(),
   source: z.string().optional(),
   since: z.string().datetime().optional(),
-  page: z.string().regex(/^\d+$/).optional().default('1'),
-  limit: z.string().regex(/^\d+$/).optional().default('50'),
+  page: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_PAGE)),
+  limit: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_LIMIT)),
 });
 
 export const eventsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -43,25 +47,13 @@ export const eventsRoutes: FastifyPluginAsync = async (fastify) => {
   // List events
   fastify.get('/', async (request, reply) => {
     const query = listEventsSchema.parse(request.query);
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(query);
 
-    const where: any = {};
-
-    if (query.name) {
-      where.name = query.name;
-    }
-
-    if (query.source) {
-      where.source = query.source;
-    }
-
-    if (query.since) {
-      where.createdAt = {
-        gte: new Date(query.since),
-      };
-    }
+    const where = buildWhereClause({
+      name: query.name,
+      source: query.source,
+      createdAt: query.since ? { gte: new Date(query.since) } : undefined,
+    });
 
     const [events, total] = await Promise.all([
       prisma.event.findMany({
@@ -73,16 +65,9 @@ export const eventsRoutes: FastifyPluginAsync = async (fastify) => {
       prisma.event.count({ where }),
     ]);
 
-    return reply.send({
-      success: true,
-      data: events,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return reply.send(
+      createPaginatedResponse(events, createPaginationMeta(page, limit, total))
+    );
   });
 
   // Get event by ID
@@ -96,7 +81,7 @@ export const eventsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!event) {
       return reply.status(404).send({
         success: false,
-        error: 'Event not found',
+        error: 'Event not found', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 

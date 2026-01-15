@@ -5,9 +5,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import Layout from '../components/Layout';
 import axios from 'axios';
+import { getErrorMessage } from '../utils/error.utils';
+import { showError, showSuccess } from '../utils/toast.utils';
+import { useConfirm } from '../hooks/useConfirm';
+import ConfirmModal from '../components/ConfirmModal';
+import { SkeletonLoader } from '../components/LoadingSpinner';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -34,6 +37,7 @@ interface Module {
 export default function JobsPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const { confirm, confirmState, handleConfirm, handleClose } = useConfirm();
 
   // Fetch jobs
   const { data: jobsData, isLoading, error } = useQuery({
@@ -76,10 +80,10 @@ export default function JobsPage() {
       return response.data;
     },
     onSuccess: () => {
-      toast.success('Job queued for execution');
+      showSuccess('Job queued for execution');
     },
     onError: (error: any) => {
-      toast.error(`Failed to execute job: ${error.response?.data?.error || error.message}`);
+      showError(`Failed to execute job: ${getErrorMessage(error)}`);
     },
   });
 
@@ -96,10 +100,10 @@ export default function JobsPage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success(`Job ${variables.enabled ? 'disabled' : 'enabled'} successfully`);
+      showSuccess(`Job ${variables.enabled ? 'disabled' : 'enabled'} successfully`);
     },
     onError: (error: any) => {
-      toast.error(`Failed to toggle job: ${error.response?.data?.error || error.message}`);
+      showError(`Failed to toggle job: ${getErrorMessage(error)}`);
     },
   });
 
@@ -115,10 +119,10 @@ export default function JobsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      toast.success('Job deleted successfully');
+      showSuccess('Job deleted successfully');
     },
     onError: (error: any) => {
-      toast.error(`Failed to delete job: ${error.response?.data?.error || error.message}`);
+      showError(`Failed to delete job: ${getErrorMessage(error)}`);
     },
   });
 
@@ -129,10 +133,16 @@ export default function JobsPage() {
     return modules.find(m => m.id === moduleId)?.name || moduleId;
   };
 
-  const handleExecute = (jobId: string) => {
-    if (confirm('Execute this job now?')) {
-      executeJobMutation.mutate(jobId);
-    }
+  const handleExecute = (jobId: string, jobName: string) => {
+    confirm(
+      () => executeJobMutation.mutateAsync(jobId),
+      {
+        title: 'Execute Job',
+        message: `Are you sure you want to execute "${jobName}" now?`,
+        confirmText: 'Execute',
+        variant: 'info',
+      }
+    );
   };
 
   const handleToggle = (job: Job) => {
@@ -140,13 +150,20 @@ export default function JobsPage() {
   };
 
   const handleDelete = (jobId: string, jobName: string) => {
-    if (confirm(`Delete job "${jobName}"? This action cannot be undone.`)) {
-      deleteJobMutation.mutate(jobId);
-    }
+    confirm(
+      () => deleteJobMutation.mutateAsync(jobId),
+      {
+        title: 'Delete Job',
+        message: `Are you sure you want to delete "${jobName}"? This action cannot be undone.`,
+        confirmText: 'Delete',
+        variant: 'danger',
+      }
+    );
   };
 
   return (
-    <Layout>
+    <div className="p-8">
+    
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -183,9 +200,8 @@ export default function JobsPage() {
 
         {/* Loading */}
         {isLoading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading jobs...</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+            <SkeletonLoader lines={5} />
           </div>
         )}
 
@@ -265,7 +281,7 @@ export default function JobsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
-                        onClick={() => handleExecute(job.id)}
+                        onClick={() => handleExecute(job.id, job.name)}
                         disabled={!job.enabled}
                         className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -297,6 +313,19 @@ export default function JobsPage() {
           </div>
         )}
       </div>
-    </Layout>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        onClose={handleClose}
+        onConfirm={handleConfirm}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        variant={confirmState.variant}
+        isLoading={confirmState.isLoading}
+      />
+    </div>
   );
 }

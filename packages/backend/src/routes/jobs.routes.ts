@@ -5,11 +5,13 @@
 
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { parseExpression } from 'cron-parser';
 import { prisma } from '../lib/prisma.js';
-import { jobQueueService } from '../services/job-queue.service.js';
-import { jobSchedulerService } from '../services/job-scheduler.service.js';
-import { workerService } from '../services/worker.service.js';
-import { jobExecutorService } from '../services/job-executor.service.js';
+import { jobService } from '../services/job.service.js';
+import { ERROR_MESSAGES, JOB_CONFIG, TIMEOUTS, PAGINATION } from '../config/constants.js';
+import { parsePagination, createPaginationMeta } from '../utils/pagination.utils.js';
+import { createPaginatedResponse } from '../utils/response.utils.js';
+import { buildWhereClause, parseBoolean } from '../utils/query.utils.js';
 import type { CreateJobDTO, UpdateJobDTO, ListJobsQuery } from '../types/job.types.js';
 
 // Validation schemas
@@ -20,8 +22,8 @@ const createJobSchema = z.object({
   handler: z.string().min(1),
   schedule: z.string().optional(),
   enabled: z.boolean().optional().default(true),
-  timeout: z.number().int().positive().optional().default(300000),
-  retries: z.number().int().nonnegative().optional().default(3),
+  timeout: z.number().int().positive().optional().default(TIMEOUTS.JOB_DEFAULT),
+  retries: z.number().int().nonnegative().optional().default(JOB_CONFIG.DEFAULT_RETRIES),
   config: z.record(z.any()).optional(),
 });
 
@@ -38,25 +40,30 @@ const updateJobSchema = z.object({
 const listJobsSchema = z.object({
   moduleId: z.string().uuid().optional(),
   enabled: z.enum(['true', 'false']).optional(),
-  page: z.string().regex(/^\d+$/).optional().default('1'),
-  limit: z.string().regex(/^\d+$/).optional().default('50'),
+  page: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_PAGE)),
+  limit: z.string().regex(/^\d+$/).optional().default(String(PAGINATION.DEFAULT_LIMIT)),
 });
+
+// Helper function to validate cron expression
+function validateCronExpression(expression: string): boolean {
+  try {
+    parseExpression(expression);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
 
 export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
   // List all jobs
   fastify.get('/', async (request, reply) => {
     const query = listJobsSchema.parse(request.query);
-    const page = parseInt(query.page);
-    const limit = parseInt(query.limit);
-    const skip = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(query);
 
-    const where: any = {};
-    if (query.moduleId) {
-      where.moduleId = query.moduleId;
-    }
-    if (query.enabled !== undefined) {
-      where.enabled = query.enabled === 'true';
-    }
+    const where = buildWhereClause({
+      moduleId: query.moduleId,
+      enabled: parseBoolean(query.enabled),
+    });
 
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
@@ -74,16 +81,9 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       prisma.job.count({ where }),
     ]);
 
-    return reply.send({
-      success: true,
-      data: jobs,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
+    return reply.send(
+      createPaginatedResponse(jobs, createPaginationMeta(page, limit, total))
+    );
   });
 
   // Get job by ID
@@ -107,19 +107,13 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!job) {
       return reply.status(404).send({
         success: false,
-        error: 'Job not found',
+        error: ERROR_MESSAGES.JOB_NOT_FOUND,
       });
     }
 
-    // Get queue status
-    const queueStatus = await jobQueueService.getJobStatus(id);
-
     return reply.send({
       success: true,
-      data: {
-        ...job,
-        queueStatus,
-      },
+      data: job,
     });
   });
 
@@ -135,15 +129,15 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!module) {
       return reply.status(404).send({
         success: false,
-        error: 'Module not found',
+        error: ERROR_MESSAGES.MODULE_NOT_FOUND,
       });
     }
 
     // Validate cron expression if provided
-    if (body.schedule && !jobSchedulerService.validateCronExpression(body.schedule)) {
+    if (body.schedule && !validateCronExpression(body.schedule)) {
       return reply.status(400).send({
         success: false,
-        error: 'Invalid cron expression',
+        error: 'Invalid cron expression', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 
@@ -166,10 +160,9 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       },
     });
 
-    // Create schedule if cron expression provided
-    if (body.schedule) {
-      await jobSchedulerService.createSchedule(job.id, body.schedule);
-      await jobSchedulerService.enableJobSchedules(job.id);
+    // Schedule the job if cron expression provided
+    if (body.schedule && job.enabled) {
+      await jobService.scheduleJob(job as any, body.schedule);
     }
 
     return reply.status(201).send({
@@ -191,15 +184,15 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!existingJob) {
       return reply.status(404).send({
         success: false,
-        error: 'Job not found',
+        error: ERROR_MESSAGES.JOB_NOT_FOUND,
       });
     }
 
     // Validate cron expression if provided
-    if (body.schedule && !jobSchedulerService.validateCronExpression(body.schedule)) {
+    if (body.schedule && !validateCronExpression(body.schedule)) {
       return reply.status(400).send({
         success: false,
-        error: 'Invalid cron expression',
+        error: 'Invalid cron expression', // TODO: Add to ERROR_MESSAGES constant
       });
     }
 
@@ -222,13 +215,10 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Update schedule if changed
     if (body.schedule !== undefined) {
-      if (body.schedule) {
-        await jobSchedulerService.createSchedule(job.id, body.schedule);
-        if (job.enabled) {
-          await jobSchedulerService.enableJobSchedules(job.id);
-        }
+      if (body.schedule && job.enabled) {
+        await jobService.scheduleJob(job as any, body.schedule);
       } else {
-        await jobSchedulerService.disableJobSchedules(job.id);
+        await jobService.unscheduleJob(job.id);
       }
     }
 
@@ -250,13 +240,12 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!job) {
       return reply.status(404).send({
         success: false,
-        error: 'Job not found',
+        error: ERROR_MESSAGES.JOB_NOT_FOUND,
       });
     }
 
-    // Remove from queue
-    await jobQueueService.removeJob(id);
-    await jobQueueService.removeRecurringJob(id);
+    // Unschedule the job
+    await jobService.unscheduleJob(id);
 
     // Delete job (cascades to schedules and executions)
     await prisma.job.delete({
@@ -280,7 +269,7 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
     if (!job) {
       return reply.status(404).send({
         success: false,
-        error: 'Job not found',
+        error: ERROR_MESSAGES.JOB_NOT_FOUND,
       });
     }
 
@@ -291,12 +280,13 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    // Add to queue (worker will create execution record)
-    await jobQueueService.addJob(job as any);
+    // Trigger job execution
+    const bullJobId = await jobService.triggerJob(job as any);
 
     return reply.send({
       success: true,
       message: 'Job queued for execution',
+      bullJobId,
     });
   });
 
@@ -310,9 +300,9 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       include: { schedules: true },
     });
 
-    // Enable schedules
+    // Schedule the job
     if (job.schedule) {
-      await jobSchedulerService.enableJobSchedules(id);
+      await jobService.scheduleJob(job as any, job.schedule);
     }
 
     return reply.send({
@@ -330,8 +320,8 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
       data: { enabled: false },
     });
 
-    // Disable schedules
-    await jobSchedulerService.disableJobSchedules(id);
+    // Unschedule the job
+    await jobService.unscheduleJob(id);
 
     return reply.send({
       success: true,
@@ -341,29 +331,21 @@ export const jobsRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Get queue metrics
   fastify.get('/metrics/queue', async (request, reply) => {
-    const metrics = await jobQueueService.getQueueMetrics();
-    const scheduleStats = await jobSchedulerService.getScheduleStats();
+    const metrics = await jobService.getMetrics();
 
     return reply.send({
       success: true,
-      data: {
-        queue: metrics,
-        schedules: scheduleStats,
-      },
+      data: metrics,
     });
   });
 
   // Get worker status
   fastify.get('/metrics/worker', async (request, reply) => {
-    const status = workerService.getStatus();
-    const cacheStats = jobExecutorService.getCacheStats();
+    const metrics = await jobService.getMetrics();
 
     return reply.send({
       success: true,
-      data: {
-        worker: status,
-        executor: cacheStats,
-      },
+      data: metrics,
     });
   });
 

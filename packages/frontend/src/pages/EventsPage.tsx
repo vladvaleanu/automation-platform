@@ -4,7 +4,6 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Layout from '../components/Layout';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -70,7 +69,8 @@ export default function EventsPage() {
   const stats: EventStats | undefined = statsData?.data;
 
   return (
-    <Layout>
+    <div className="p-8">
+    
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -272,6 +272,7 @@ export default function EventsPage() {
           </>
         )}
       </div>
-    </Layout>
+    
+    </div>
   );
 }

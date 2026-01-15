@@ -1,0 +1,118 @@
+{
+  "name": "consumption-monitor",
+  "version": "1.0.0",
+  "displayName": "Consumption Monitor",
+  "description": "Automated power consumption monitoring for colocation racks - scrapes power meters, tracks kWh usage, generates reports and alerts",
+  "author": "NxForge",
+  "license": "MIT",
+  "entry": "./dist/index.js",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/*",
+      "handler": "./dist/routes/index.js",
+      "description": "Consumption monitoring routes (registers /readings, /monthly/:endpointId, /summary, /live)"
+    }
+  ],
+  "jobs": {
+    "collect-consumption": {
+      "name": "Collect Consumption Data",
+      "description": "Scrapes power meters and collects kWh consumption data from all enabled rack endpoints",
+      "handler": "./dist/jobs/collect-consumption.js",
+      "schedule": null,
+      "timeout": 300000,
+      "retries": 2,
+      "config": {
+        "batchSize": {
+          "type": "number",
+          "label": "Batch Size",
+          "description": "Number of endpoints to process concurrently",
+          "default": 5,
+          "required": false
+        },
+        "screenshotOnError": {
+          "type": "boolean",
+          "label": "Screenshot on Error",
+          "description": "Capture screenshot when scraping fails (for debugging)",
+          "default": true,
+          "required": false
+        }
+      }
+    }
+  },
+  "migrations": "./src/migrations",
+  "ui": {
+    "entry": "./dist/ui/index.js",
+    "sidebar": {
+      "icon": "⚡",
+      "label": "Consumption",
+      "order": 20,
+      "children": [
+        {
+          "label": "Live Dashboard",
+          "path": "/consumption/live"
+        },
+        {
+          "label": "Endpoints",
+          "path": "/consumption/endpoints"
+        },
+        {
+          "label": "Reports",
+          "path": "/consumption/reports"
+        },
+        {
+          "label": "History",
+          "path": "/consumption/history"
+        }
+      ]
+    },
+    "routes": [
+      {
+        "path": "/consumption/live",
+        "component": "./ui/pages/LiveDashboard.tsx"
+      },
+      {
+        "path": "/consumption/endpoints",
+        "component": "./ui/pages/Endpoints.tsx"
+      },
+      {
+        "path": "/consumption/reports",
+        "component": "./ui/pages/Reports.tsx"
+      },
+      {
+        "path": "/consumption/history",
+        "component": "./ui/pages/History.tsx"
+      }
+    ]
+  },
+  "permissions": [
+    "database:read",
+    "database:write",
+    "network:outbound",
+    "filesystem:write"
+  ],
+  "dependencies": {},
+  "settings": {
+    "defaultBatchSize": {
+      "type": "number",
+      "label": "Default Batch Size",
+      "description": "Default number of endpoints to process concurrently",
+      "default": 5,
+      "required": false
+    },
+    "screenshotDirectory": {
+      "type": "string",
+      "label": "Screenshot Directory",
+      "description": "Directory to store error screenshots",
+      "default": "screenshots",
+      "required": false
+    },
+    "retentionDays": {
+      "type": "number",
+      "label": "Data Retention (Days)",
+      "description": "Number of days to retain consumption readings",
+      "default": 365,
+      "required": false
+    }
+  }
+}

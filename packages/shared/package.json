@@ -1,5 +1,5 @@
 {
-  "name": "@automation-platform/shared",
+  "name": "@nxforge/shared",
   "version": "1.0.0",
   "description": "Shared types, utilities, and schemas",
   "main": "dist/index.js",

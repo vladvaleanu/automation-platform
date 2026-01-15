@@ -5,6 +5,7 @@
 
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { logger } from '../config/logger.js';
+import { TIMEOUTS, HTTP_RETRY, HTTP_STATUS } from '../config/constants.js';
 import type {
   HttpService as IHttpService,
   HttpRequestOptions,
@@ -13,14 +14,14 @@ import type {
 
 export class HttpService implements IHttpService {
   private client: AxiosInstance;
-  private defaultTimeout = 30000; // 30 seconds
-  private defaultRetries = 3;
+  private defaultTimeout = TIMEOUTS.HTTP_REQUEST;
+  private defaultRetries = HTTP_RETRY.DEFAULT_RETRIES;
 
   constructor() {
     this.client = axios.create({
       timeout: this.defaultTimeout,
       headers: {
-        'User-Agent': 'Automation-Platform/1.0',
+        'User-Agent': 'NxForge/1.0',
       },
     });
 
@@ -135,9 +136,9 @@ export class HttpService implements IHttpService {
         // Don't retry on client errors (4xx) except 429 (rate limit)
         if (
           error.response?.status &&
-          error.response.status >= 400 &&
-          error.response.status < 500 &&
-          error.response.status !== 429
+          error.response.status >= HTTP_STATUS.BAD_REQUEST &&
+          error.response.status < HTTP_STATUS.INTERNAL_SERVER_ERROR &&
+          error.response.status !== HTTP_STATUS.TOO_MANY_REQUESTS
         ) {
           break;
         }
@@ -148,7 +149,7 @@ export class HttpService implements IHttpService {
         }
 
         // Calculate exponential backoff delay
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        const delay = Math.min(HTTP_RETRY.INITIAL_BACKOFF * Math.pow(2, attempt - 1), HTTP_RETRY.MAX_BACKOFF);
 
         logger.warn(`HTTP request failed, retrying in ${delay}ms (attempt ${attempt}/${retries})`, {
           method,
@@ -180,7 +181,7 @@ export class HttpService implements IHttpService {
    * Download file from URL
    */
   async downloadFile(url: string, options: HttpRequestOptions = {}): Promise<Buffer> {
-    const { headers = {}, timeout = 60000 } = options;
+    const { headers = {}, timeout = HTTP_RETRY.DOWNLOAD_TIMEOUT } = options;
 
     try {
       const response = await this.client.get(url, {
@@ -203,10 +204,10 @@ export class HttpService implements IHttpService {
   /**
    * Check if URL is accessible
    */
-  async checkUrl(url: string, timeout = 5000): Promise<boolean> {
+  async checkUrl(url: string, timeout = HTTP_RETRY.URL_CHECK_TIMEOUT): Promise<boolean> {
     try {
       const response = await this.client.head(url, { timeout });
-      return response.status >= 200 && response.status < 400;
+      return response.status >= HTTP_STATUS.OK && response.status < HTTP_STATUS.BAD_REQUEST;
     } catch (error) {
       return false;
     }
