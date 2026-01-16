@@ -43,37 +43,85 @@ function ModulesPageContent() {
     registered: modules.filter(m => m.status === ModuleStatus.REGISTERED).length,
   }), [modules]);
 
-  // Enable module mutation
+  // Enable module mutation with optimistic updates
   const enableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.enable(name),
-    onSuccess: async (data, name) => {
-      // Invalidate and refetch immediately
-      await queryClient.invalidateQueries({ queryKey: ['modules'], refetchType: 'active' });
-      await queryClient.refetchQueries({ queryKey: ['modules'] });
-      showSuccess(`Module "${name}" enabled successfully`);
-      // Trigger sidebar refresh by reloading module loader
-      window.dispatchEvent(new CustomEvent('modules-changed'));
+    onMutate: async (name) => {
+      // Cancel outgoing refetches to avoid race conditions
+      await queryClient.cancelQueries({ queryKey: ['modules'] });
+
+      // Snapshot previous value for rollback
+      const previousModules = queryClient.getQueryData(['modules']);
+
+      // Optimistically update the UI immediately
+      queryClient.setQueryData(['modules'], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((m: any) =>
+          m.name === name
+            ? { ...m, status: 'ENABLED', enabledAt: new Date().toISOString() }
+            : m
+        );
+      });
+
+      return { previousModules };
     },
-    onError: (error: any, name) => {
+    onError: (error: any, name, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousModules) {
+        queryClient.setQueryData(['modules'], context.previousModules);
+      }
       console.error('Failed to enable module:', error);
       showError(`Failed to enable module "${name}": ${getErrorMessage(error)}`);
     },
+    onSettled: async (_data, error, name) => {
+      // Wait for DB commit, then refetch to ensure accuracy
+      await new Promise(resolve => setTimeout(resolve, 150));
+      await queryClient.invalidateQueries({ queryKey: ['modules'] });
+      if (!error) {
+        showSuccess(`Module "${name}" enabled successfully`);
+        window.dispatchEvent(new CustomEvent('modules-changed'));
+      }
+    },
   });
 
-  // Disable module mutation
+  // Disable module mutation with optimistic updates
   const disableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.disable(name),
-    onSuccess: async (data, name) => {
-      // Invalidate and refetch immediately
-      await queryClient.invalidateQueries({ queryKey: ['modules'], refetchType: 'active' });
-      await queryClient.refetchQueries({ queryKey: ['modules'] });
-      showSuccess(`Module "${name}" disabled successfully`);
-      // Trigger sidebar refresh by reloading module loader
-      window.dispatchEvent(new CustomEvent('modules-changed'));
+    onMutate: async (name) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['modules'] });
+
+      // Snapshot previous value
+      const previousModules = queryClient.getQueryData(['modules']);
+
+      // Optimistically update the UI
+      queryClient.setQueryData(['modules'], (old: any) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((m: any) =>
+          m.name === name
+            ? { ...m, status: 'DISABLED', disabledAt: new Date().toISOString() }
+            : m
+        );
+      });
+
+      return { previousModules };
     },
-    onError: (error: any, name) => {
+    onError: (error: any, name, context) => {
+      // Rollback on error
+      if (context?.previousModules) {
+        queryClient.setQueryData(['modules'], context.previousModules);
+      }
       console.error('Failed to disable module:', error);
       showError(`Failed to disable module "${name}": ${getErrorMessage(error)}`);
+    },
+    onSettled: async (_data, error, name) => {
+      // Wait for DB commit, then refetch
+      await new Promise(resolve => setTimeout(resolve, 150));
+      await queryClient.invalidateQueries({ queryKey: ['modules'] });
+      if (!error) {
+        showSuccess(`Module "${name}" disabled successfully`);
+        window.dispatchEvent(new CustomEvent('modules-changed'));
+      }
     },
   });
 
