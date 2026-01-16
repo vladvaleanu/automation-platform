@@ -110,6 +110,7 @@ model Module {
   // Relations
   dependencies     ModuleDependency[] @relation("DependentModule")
   dependents       ModuleDependency[] @relation("RequiredModule")
+  jobs             Job[]
 
   @@index([status])
   @@map("modules")
@@ -181,6 +182,7 @@ model Job {
   createdBy   String?  // User ID who created the job
 
   // Relations
+  module      Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   executions  JobExecution[]
   schedules   JobSchedule[]
 

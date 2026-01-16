@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { parseExpression } from 'cron-parser';
 import { prisma } from '../lib/prisma.js';
 import { jobService } from '../services/job.service.js';
+import { jobExecutorService } from '../services/job-executor.service.js';
 import { ERROR_MESSAGES, JOB_CONFIG, TIMEOUTS, PAGINATION } from '../config/constants.js';
 import { parsePagination, createPaginationMeta } from '../utils/pagination.utils.js';
 import { createPaginatedResponse } from '../utils/response.utils.js';
