@@ -23,12 +23,14 @@ function ModulesPageContent() {
     showInfo('Module installation UI coming soon! For now, modules can be registered via API.');
   };
 
-  // Fetch modules
+  // Fetch modules with shorter staleTime for immediate updates
   const { data: modulesData, isLoading, error } = useQuery({
     queryKey: ['modules'],
     queryFn: async () => {
       return modulesApi.list();
     },
+    staleTime: 0, // Always consider data stale to ensure refetch after mutations
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 
   const modules: Module[] = Array.isArray(modulesData) ? modulesData : [];
@@ -44,8 +46,10 @@ function ModulesPageContent() {
   // Enable module mutation
   const enableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.enable(name),
-    onSuccess: (data, name) => {
-      queryClient.invalidateQueries({ queryKey: ['modules'] });
+    onSuccess: async (data, name) => {
+      // Invalidate and refetch immediately
+      await queryClient.invalidateQueries({ queryKey: ['modules'], refetchType: 'active' });
+      await queryClient.refetchQueries({ queryKey: ['modules'] });
       showSuccess(`Module "${name}" enabled successfully`);
       // Trigger sidebar refresh by reloading module loader
       window.dispatchEvent(new CustomEvent('modules-changed'));
@@ -59,8 +63,10 @@ function ModulesPageContent() {
   // Disable module mutation
   const disableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.disable(name),
-    onSuccess: (data, name) => {
-      queryClient.invalidateQueries({ queryKey: ['modules'] });
+    onSuccess: async (data, name) => {
+      // Invalidate and refetch immediately
+      await queryClient.invalidateQueries({ queryKey: ['modules'], refetchType: 'active' });
+      await queryClient.refetchQueries({ queryKey: ['modules'] });
       showSuccess(`Module "${name}" disabled successfully`);
       // Trigger sidebar refresh by reloading module loader
       window.dispatchEvent(new CustomEvent('modules-changed'));
