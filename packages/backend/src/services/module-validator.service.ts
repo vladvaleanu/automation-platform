@@ -15,12 +15,12 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 
 /**
- * JSON Schema for module manifest validation
- * Using a simpler schema without strict typing to avoid AJV nullable issues
+ * JSON Schema for module manifest validation (V2 Schema)
+ * Flat structure with entry, routes, jobs, ui at root level
  */
 const manifestSchema = {
   type: 'object',
-  required: ['name', 'version', 'displayName', 'description', 'author', 'capabilities'],
+  required: ['name', 'version', 'displayName', 'description', 'author', 'entry'],
   additionalProperties: true,
   properties: {
     name: {
@@ -50,96 +50,59 @@ const manifestSchema = {
     license: {
       type: 'string',
     },
-    capabilities: {
+    // V2 Schema: flat structure
+    entry: {
+      type: 'string',
+      minLength: 1,
+    },
+    routes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['method', 'path', 'handler'],
+        properties: {
+          method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
+          path: { type: 'string', pattern: '^/' },
+          handler: { type: 'string' },
+          description: { type: 'string' },
+          middleware: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    jobs: {
       type: 'object',
+      patternProperties: {
+        '^[a-z0-9-]+$': {
+          type: 'object',
+          required: ['name', 'handler'],
+          properties: {
+            name: { type: 'string' },
+            description: { type: 'string' },
+            handler: { type: 'string' },
+            schedule: { type: ['string', 'null'] },
+            timeout: { type: 'number' },
+            retries: { type: 'number' },
+            config: { type: 'object' },
+          },
+        },
+      },
+    },
+    migrations: {
+      type: 'string',
+    },
+    ui: {
+      type: 'object',
+      required: ['entry', 'sidebar', 'routes'],
       properties: {
-        api: {
+        entry: { type: 'string' },
+        sidebar: {
           type: 'object',
+          required: ['icon', 'label'],
           properties: {
-            routes: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['method', 'path', 'handler'],
-                properties: {
-                  method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
-                  path: { type: 'string', pattern: '^/' },
-                  handler: { type: 'string' },
-                  permissions: { type: 'array', items: { type: 'string' } },
-                  schema: { type: 'object' },
-                },
-              },
-            },
-            middleware: { type: 'array', items: { type: 'string' } },
-          },
-        },
-        jobs: {
-          type: 'object',
-          properties: {
-            handlers: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['name', 'handler'],
-                properties: {
-                  name: { type: 'string' },
-                  handler: { type: 'string' },
-                  schedule: { type: 'string' },
-                  timeout: { type: 'number' },
-                  retries: { type: 'number' },
-                },
-              },
-            },
-          },
-        },
-        events: {
-          type: 'object',
-          properties: {
-            listeners: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['event', 'handler'],
-                properties: {
-                  event: { type: 'string' },
-                  handler: { type: 'string' },
-                  priority: { type: 'number' },
-                },
-              },
-            },
-            emitters: { type: 'array', items: { type: 'string' } },
-          },
-        },
-        ui: {
-          type: 'object',
-          properties: {
-            pages: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['path', 'component', 'title'],
-                properties: {
-                  path: { type: 'string' },
-                  component: { type: 'string' },
-                  title: { type: 'string' },
-                  permissions: { type: 'array', items: { type: 'string' } },
-                  icon: { type: 'string' },
-                },
-              },
-            },
-            components: {
-              type: 'array',
-              items: {
-                type: 'object',
-                required: ['name', 'component'],
-                properties: {
-                  name: { type: 'string' },
-                  component: { type: 'string' },
-                  slot: { type: 'string' },
-                },
-              },
-            },
-            navigation: {
+            icon: { type: 'string' },
+            label: { type: 'string' },
+            order: { type: 'number' },
+            children: {
               type: 'array',
               items: {
                 type: 'object',
@@ -148,40 +111,34 @@ const manifestSchema = {
                   label: { type: 'string' },
                   path: { type: 'string' },
                   icon: { type: 'string' },
-                  permissions: { type: 'array', items: { type: 'string' } },
-                  order: { type: 'number' },
-                  children: { type: 'array' },
                 },
               },
             },
           },
         },
-      },
-    },
-    dependencies: {
-      type: 'object',
-      properties: {
-        modules: { type: 'object' },
-        npm: { type: 'object' },
-        system: {
-          type: 'object',
-          properties: {
-            node: { type: 'string' },
-            database: { type: 'array', items: { type: 'string' } },
+        routes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['path', 'component'],
+            properties: {
+              path: { type: 'string' },
+              component: { type: 'string' },
+              exact: { type: 'boolean' },
+            },
           },
         },
       },
     },
-    config: {
+    settings: {
       type: 'object',
-      properties: {
-        schema: { type: 'object' },
-        defaults: { type: 'object' },
-      },
     },
     permissions: {
       type: 'array',
       items: { type: 'string' },
+    },
+    dependencies: {
+      type: 'object',
     },
     metadata: {
       type: 'object',
@@ -248,40 +205,19 @@ export class ModuleValidator {
       }
 
       // Validate at least one capability is defined
-      if (
-        !manifest.capabilities?.api &&
-        !manifest.capabilities?.jobs &&
-        !manifest.capabilities?.events &&
-        !manifest.capabilities?.ui
-      ) {
-        warnings.push('Module has no capabilities defined (api, jobs, events, or ui)');
-      }
-
-      // Validate cron expressions in job schedules
-      if (manifest.capabilities?.jobs?.handlers) {
-        for (const handler of manifest.capabilities.jobs.handlers) {
-          if (handler.schedule) {
-            // Basic cron validation (would use a library in production)
-            const cronParts = handler.schedule.split(' ');
-            if (cronParts.length < 5 || cronParts.length > 6) {
-              errors.push({
-                field: `capabilities.jobs.handlers[${handler.name}].schedule`,
-                message: 'Invalid cron expression',
-                code: 'invalid_cron',
-              });
-            }
-          }
-        }
+      const hasCapabilities = manifest.routes || manifest.jobs || manifest.ui;
+      if (!hasCapabilities) {
+        warnings.push('Module has no capabilities defined (routes, jobs, or ui)');
       }
 
       // Validate route paths don't conflict
-      if (manifest.capabilities?.api?.routes) {
+      if (manifest.routes) {
         const routePaths = new Set<string>();
-        for (const route of manifest.capabilities.api.routes) {
+        for (const route of manifest.routes) {
           const routeKey = `${route.method}:${route.path}`;
           if (routePaths.has(routeKey)) {
             errors.push({
-              field: `capabilities.api.routes`,
+              field: `routes`,
               message: `Duplicate route: ${routeKey}`,
               code: 'duplicate_route',
             });

@@ -151,6 +151,87 @@ export async function registerRoutes(fastify: FastifyInstance, context: ModuleCo
     }
   );
 
+  // GET /monthly-summary - Get monthly consumption summary for all endpoints (for reports)
+  fastify.get('/monthly-summary', async () => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    // Get first and last day of current month
+    const firstDay = new Date(currentYear, currentMonth - 1, 1);
+    const lastDay = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+
+    // Get all enabled endpoints
+    const endpoints = await prisma.endpoint.findMany({
+      where: { enabled: true },
+      select: {
+        id: true,
+        name: true,
+        clientName: true,
+        location: true,
+      },
+    });
+
+    const monthlyData = await Promise.all(
+      endpoints.map(async (endpoint: any) => {
+        // Get all readings for current month
+        const readings = await prisma.consumptionReading.findMany({
+          where: {
+            endpointId: endpoint.id,
+            timestamp: {
+              gte: firstDay,
+              lte: lastDay,
+            },
+            success: true,
+            totalKwh: { not: null },
+          },
+          orderBy: { timestamp: 'asc' },
+          select: {
+            timestamp: true,
+            totalKwh: true,
+          },
+        });
+
+        if (readings.length === 0) {
+          return {
+            endpointId: endpoint.id,
+            endpointName: endpoint.name,
+            clientName: endpoint.clientName,
+            location: endpoint.location,
+            currentKwh: null,
+            previousKwh: null,
+            consumedKwh: null,
+            lastReadingAt: null,
+            readingsCount: 0,
+          };
+        }
+
+        const firstReading = readings[0];
+        const lastReading = readings[readings.length - 1];
+        const previousKwh = firstReading.totalKwh!;
+        const currentKwh = lastReading.totalKwh!;
+        const consumedKwh = currentKwh - previousKwh;
+
+        return {
+          endpointId: endpoint.id,
+          endpointName: endpoint.name,
+          clientName: endpoint.clientName,
+          location: endpoint.location,
+          currentKwh,
+          previousKwh,
+          consumedKwh,
+          lastReadingAt: lastReading.timestamp,
+          readingsCount: readings.length,
+        };
+      })
+    );
+
+    return {
+      success: true,
+      data: monthlyData,
+    };
+  });
+
   // GET /summary - Get consumption summary for all endpoints
   fastify.get<{ Querystring: SummaryQuery }>('/summary', async (request) => {
     const { period = 'day' } = request.query;
@@ -519,17 +600,53 @@ export async function registerRoutes(fastify: FastifyInstance, context: ModuleCo
       });
     }
 
-    // TODO: Implement actual scraping test logic
-    // For now, return a placeholder response
-    return {
-      success: true,
-      data: {
+    try {
+      // Import ScrapingService dynamically
+      const { ScrapingService } = await import('@nxforge/core');
+
+      // Perform actual scraping test
+      const result = await ScrapingService.scrape(
+        `http://${endpoint.ipAddress}`,
+        endpoint.authConfig,
+        endpoint.scrapingConfig,
+        { screenshotOnError: true }
+      );
+
+      if (!result.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            message: result.error || 'Scraping failed',
+            statusCode: 400
+          },
+          data: {
+            success: false,
+            error: result.error,
+            screenshot: result.screenshot,
+          },
+        });
+      }
+
+      return {
         success: true,
-        value: 123.45,
-        unit: 'kWh',
-        message: 'Test scraping not yet implemented - placeholder response',
-      },
-    };
+        data: {
+          success: true,
+          value: result.value,
+          unit: 'kWh',
+          additionalData: result.additionalData,
+          message: 'Scraping successful',
+        },
+      };
+    } catch (error: any) {
+      logger.error(`[Test Endpoint] Failed to test endpoint ${endpoint.name}: ${error.message}`);
+      return reply.status(500).send({
+        success: false,
+        error: {
+          message: `Test failed: ${error.message}`,
+          statusCode: 500
+        },
+      });
+    }
   });
 
   logger.info('[ConsumptionMonitor] Routes registered successfully');

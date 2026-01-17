@@ -142,6 +142,8 @@ export class JobExecutorService {
         config: module.config || {},
       },
       services: {
+        // Prisma client for database access
+        prisma,
         // Browser service with Playwright
         browser: browserService,
         // Notification service (email, SMS, webhooks)

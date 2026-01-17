@@ -20,23 +20,32 @@ export interface ModuleManifest {
   entry: string;
 
   // Backend configuration
-  routes: RouteDefinition[];
-  jobs: Record<string, JobDefinition>;
+  routes?: RouteDefinition[];
+  jobs?: Record<string, JobDefinition>;
   migrations?: string;
 
   // Frontend configuration
   ui?: UIConfiguration;
 
   // Dependencies
-  dependencies: {
+  dependencies?: {
     [packageName: string]: string;
   };
 
   // Permissions
-  permissions: string[];
+  permissions?: string[];
 
   // Settings schema
   settings?: Record<string, SettingDefinition>;
+
+  // Metadata
+  metadata?: {
+    homepage?: string;
+    repository?: string;
+    bugs?: string;
+    tags?: string[];
+    category?: string;
+  };
 }
 
 // ============================================================================

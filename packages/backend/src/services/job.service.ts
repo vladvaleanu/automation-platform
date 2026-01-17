@@ -191,22 +191,32 @@ export class JobService {
     );
 
     // Update job schedule in database
-    await prisma.jobSchedule.upsert({
-      where: {
-        jobId: job.id,
-      },
-      create: {
-        jobId: job.id,
-        schedule: cronExpression,
-        enabled: true,
-        timezone: 'UTC',
-        nextRun: new Date(), // BullMQ handles actual scheduling
-      },
-      update: {
-        schedule: cronExpression,
-        enabled: true,
-      },
+    // First, try to find existing schedule for this job
+    const existingSchedule = await prisma.jobSchedule.findFirst({
+      where: { jobId: job.id },
     });
+
+    if (existingSchedule) {
+      // Update existing schedule
+      await prisma.jobSchedule.update({
+        where: { id: existingSchedule.id },
+        data: {
+          schedule: cronExpression,
+          enabled: true,
+        },
+      });
+    } else {
+      // Create new schedule
+      await prisma.jobSchedule.create({
+        data: {
+          jobId: job.id,
+          schedule: cronExpression,
+          enabled: true,
+          timezone: 'UTC',
+          nextRun: new Date(), // BullMQ handles actual scheduling
+        },
+      });
+    }
 
     logger.info(`Job scheduled: ${job.id}`);
   }

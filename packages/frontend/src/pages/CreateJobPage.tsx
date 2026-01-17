@@ -15,14 +15,16 @@ interface Module {
   id: string;
   name: string;
   description?: string;
+  status?: string;
   manifest: {
-    jobs?: Array<{
+    jobs?: Record<string, {
       name: string;
       handler: string;
       description?: string;
-      schedule?: string;
+      schedule?: string | null;
       timeout?: number;
       retries?: number;
+      config?: Record<string, any>;
     }>;
   };
 }
@@ -72,6 +74,9 @@ export default function CreateJobPage() {
 
   const modules: Module[] = (modulesData?.data || []).filter((m: Module) => m.status === 'ENABLED');
 
+  console.log('[CreateJobPage] modulesData:', modulesData);
+  console.log('[CreateJobPage] filtered modules:', modules);
+
   // Create job mutation
   const createJobMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -94,7 +99,16 @@ export default function CreateJobPage() {
   const handleModuleChange = (moduleId: string) => {
     setFormData({ ...formData, moduleId, handler: '' });
     const module = modules.find(m => m.id === moduleId);
-    setSelectedModuleHandlers(module?.manifest?.jobs || []);
+
+    // Transform jobs object to array for UI
+    const handlers = module?.manifest?.jobs
+      ? Object.entries(module.manifest.jobs).map(([key, job]) => ({
+          ...job,
+          key, // Keep the job key for reference
+        }))
+      : [];
+
+    setSelectedModuleHandlers(handlers);
   };
 
   const handleHandlerChange = (handler: string) => {

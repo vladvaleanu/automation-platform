@@ -23,13 +23,17 @@ function ModulesPageContent() {
     showInfo('Module installation UI coming soon! For now, modules can be registered via API.');
   };
 
-  // Fetch modules with shorter staleTime for immediate updates
-  const { data: modulesData, isLoading, error } = useQuery({
+  // Fetch modules
+  const { data: modulesData, isLoading, error, refetch } = useQuery({
     queryKey: ['modules'],
     queryFn: async () => {
-      return modulesApi.list();
+      console.log('[ModulesPage] Fetching modules from API...');
+      const modules = await modulesApi.list();
+      console.log('[ModulesPage] Fetched modules:', modules);
+      return modules;
     },
-    staleTime: 0, // Always consider data stale to ensure refetch after mutations
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 0, // Always refetch to avoid cache issues
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
 
@@ -43,85 +47,33 @@ function ModulesPageContent() {
     registered: modules.filter(m => m.status === ModuleStatus.REGISTERED).length,
   }), [modules]);
 
-  // Enable module mutation with optimistic updates
+  // Enable module mutation - simplified without optimistic updates
   const enableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.enable(name),
-    onMutate: async (name) => {
-      // Cancel outgoing refetches to avoid race conditions
-      await queryClient.cancelQueries({ queryKey: ['modules'] });
-
-      // Snapshot previous value for rollback
-      const previousModules = queryClient.getQueryData(['modules']);
-
-      // Optimistically update the UI immediately
-      queryClient.setQueryData(['modules'], (old: any) => {
-        if (!Array.isArray(old)) return old;
-        return old.map((m: any) =>
-          m.name === name
-            ? { ...m, status: 'ENABLED', enabledAt: new Date().toISOString() }
-            : m
-        );
-      });
-
-      return { previousModules };
+    onSuccess: async (data, name) => {
+      // Refetch modules after successful enable
+      await queryClient.invalidateQueries({ queryKey: ['modules'] });
+      showSuccess(`Module "${name}" enabled successfully`);
+      window.dispatchEvent(new CustomEvent('modules-changed'));
     },
-    onError: (error: any, name, context) => {
-      // Rollback optimistic update on error
-      if (context?.previousModules) {
-        queryClient.setQueryData(['modules'], context.previousModules);
-      }
+    onError: (error: any, name) => {
       console.error('Failed to enable module:', error);
       showError(`Failed to enable module "${name}": ${getErrorMessage(error)}`);
     },
-    onSettled: async (_data, error, name) => {
-      // Wait for DB commit, then refetch to ensure accuracy
-      await new Promise(resolve => setTimeout(resolve, 150));
-      await queryClient.invalidateQueries({ queryKey: ['modules'] });
-      if (!error) {
-        showSuccess(`Module "${name}" enabled successfully`);
-        window.dispatchEvent(new CustomEvent('modules-changed'));
-      }
-    },
   });
 
-  // Disable module mutation with optimistic updates
+  // Disable module mutation - simplified without optimistic updates
   const disableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.disable(name),
-    onMutate: async (name) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['modules'] });
-
-      // Snapshot previous value
-      const previousModules = queryClient.getQueryData(['modules']);
-
-      // Optimistically update the UI
-      queryClient.setQueryData(['modules'], (old: any) => {
-        if (!Array.isArray(old)) return old;
-        return old.map((m: any) =>
-          m.name === name
-            ? { ...m, status: 'DISABLED', disabledAt: new Date().toISOString() }
-            : m
-        );
-      });
-
-      return { previousModules };
+    onSuccess: async (data, name) => {
+      // Refetch modules after successful disable
+      await queryClient.invalidateQueries({ queryKey: ['modules'] });
+      showSuccess(`Module "${name}" disabled successfully`);
+      window.dispatchEvent(new CustomEvent('modules-changed'));
     },
-    onError: (error: any, name, context) => {
-      // Rollback on error
-      if (context?.previousModules) {
-        queryClient.setQueryData(['modules'], context.previousModules);
-      }
+    onError: (error: any, name) => {
       console.error('Failed to disable module:', error);
       showError(`Failed to disable module "${name}": ${getErrorMessage(error)}`);
-    },
-    onSettled: async (_data, error, name) => {
-      // Wait for DB commit, then refetch
-      await new Promise(resolve => setTimeout(resolve, 150));
-      await queryClient.invalidateQueries({ queryKey: ['modules'] });
-      if (!error) {
-        showSuccess(`Module "${name}" disabled successfully`);
-        window.dispatchEvent(new CustomEvent('modules-changed'));
-      }
     },
   });
 
@@ -129,8 +81,11 @@ function ModulesPageContent() {
   const STATUS_STYLES = useMemo(() => ({
     [ModuleStatus.ENABLED]: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
     [ModuleStatus.DISABLED]: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+    [ModuleStatus.INSTALLED]: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
     [ModuleStatus.REGISTERED]: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
     [ModuleStatus.INSTALLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+    [ModuleStatus.ENABLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+    [ModuleStatus.DISABLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
     [ModuleStatus.UPDATING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
     [ModuleStatus.REMOVING]: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
     [ModuleStatus.ERROR]: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
@@ -156,7 +111,7 @@ function ModulesPageContent() {
           variant: 'warning',
         }
       );
-    } else if (module.status === ModuleStatus.DISABLED) {
+    } else if (module.status === ModuleStatus.DISABLED || module.status === ModuleStatus.INSTALLED) {
       // Enabling - use info variant (less risky)
       confirm(
         () => enableMutation.mutateAsync(module.name),
@@ -167,6 +122,9 @@ function ModulesPageContent() {
           variant: 'info',
         }
       );
+    } else if (module.status === ModuleStatus.REGISTERED) {
+      // Module is only registered, needs to be installed first
+      showError(`Module "${module.displayName}" must be installed before it can be enabled. Current status: REGISTERED`);
     } else {
       showError(`Cannot toggle module with status: ${module.status}`);
     }
@@ -316,17 +274,27 @@ function ModulesPageContent() {
                       : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {(module.status === ModuleStatus.ENABLED || module.status === ModuleStatus.DISABLED) && (
+                    {(module.status === ModuleStatus.ENABLED || module.status === ModuleStatus.DISABLED || module.status === ModuleStatus.INSTALLED) && (
                       <button
                         onClick={() => handleToggleModule(module)}
                         disabled={enableMutation.isPending || disableMutation.isPending}
-                        className={`px-3 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        className={`px-3 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                           module.status === ModuleStatus.ENABLED
                             ? 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 focus:ring-red-500'
                             : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 focus:ring-green-500'
                         }`}
                       >
-                        {module.status === ModuleStatus.ENABLED ? 'Disable' : 'Enable'}
+                        {(enableMutation.isPending || disableMutation.isPending) ? (
+                          <span className="flex items-center gap-2">
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {module.status === ModuleStatus.ENABLED ? 'Disabling...' : 'Enabling...'}
+                          </span>
+                        ) : (
+                          module.status === ModuleStatus.ENABLED ? 'Disable' : 'Enable'
+                        )}
                       </button>
                     )}
                     <button
@@ -378,11 +346,11 @@ function ModulesPageContent() {
                   {getStatusBadge(selectedModule.status)}
                 </div>
 
-                {selectedModule.manifest?.capabilities?.api?.routes && (
+                {selectedModule.manifest?.routes && selectedModule.manifest.routes.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Routes</h3>
                     <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                      {selectedModule.manifest.capabilities.api.routes.map((route, idx) => (
+                      {selectedModule.manifest.routes.map((route, idx) => (
                         <li key={idx} className="font-mono">
                           {route.method} {route.path}
                         </li>

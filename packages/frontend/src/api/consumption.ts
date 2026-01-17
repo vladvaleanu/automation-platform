@@ -92,7 +92,7 @@ export const consumptionApi = {
    * Get monthly consumption summary for all endpoints
    */
   getMonthlySummary: async (): Promise<MonthlyConsumption[]> => {
-    const response = await apiClient.get<MonthlyConsumption[]>('/m/consumption-monitor/summary');
+    const response = await apiClient.get<MonthlyConsumption[]>('/m/consumption-monitor/monthly-summary');
     return response.data;
   },
 

@@ -41,82 +41,75 @@ export const modulesApi = {
     const url = `/modules${query ? `?${query}` : ''}`;
     console.log("[modulesApi] Calling:", url, "with params:", params);
 
-    const response = await apiClient.get<ModulesResponse>(url);
+    // apiClient.get<Module[]> returns ApiSuccessResponse<Module[]> = { success, data: Module[], meta }
+    // So response.data is the Module[] array directly
+    const response = await apiClient.get<Module[]>(url);
     console.log("[modulesApi] Raw response:", response);
     console.log("[modulesApi] response.data:", response.data);
 
-    // Defensive check for response structure
-    if (!response || !response.data) {
-      console.error('[modulesApi] Invalid response structure:', response);
-      return [];
-    }
-
-    // The apiClient already unwraps to response.data, so modules are in response.data not response.data.data
-    return Array.isArray(response.data) ? response.data : (response.data.data || []);
+    return response.data || [];
   },
 
   /**
    * Get module details by name
    */
   get: async (name: string): Promise<Module> => {
-    const response = await apiClient.get<ModuleResponse>(`/modules/${name}`);
-    return response.data.data;
+    const response = await apiClient.get<Module>(`/modules/${name}`);
+    return response.data;
   },
 
   /**
    * Register a new module
    */
   register: async (manifest: ModuleManifest): Promise<Module> => {
-    const response = await apiClient.post<ModuleResponse>('/modules', {
+    const response = await apiClient.post<Module>('/modules', {
       manifest,
     });
-    return response.data.data;
+    return response.data;
   },
 
   /**
    * Update module status
    */
   updateStatus: async (name: string, status: ModuleStatus): Promise<Module> => {
-    const response = await apiClient.put<ModuleResponse>(
+    const response = await apiClient.put<Module>(
       `/modules/${name}/status`,
       { status }
     );
-    return response.data.data;
+    return response.data;
   },
 
   /**
    * Enable a module
    */
   enable: async (name: string): Promise<Module> => {
-    const response = await apiClient.post<ModuleResponse>(
+    const response = await apiClient.post<Module>(
       `/modules/${name}/enable`
     );
     console.log('[modulesApi] Enable response:', response);
-    // apiClient returns the unwrapped response, so response.data is the module
-    return response.data as any as Module;
+    return response.data;
   },
 
   /**
    * Disable a module
    */
   disable: async (name: string): Promise<Module> => {
-    const response = await apiClient.post<ModuleResponse>(
+    const response = await apiClient.post<Module>(
       `/modules/${name}/disable`
     );
     console.log('[modulesApi] Disable response:', response);
-    // apiClient returns the unwrapped response, so response.data is the module
-    return response.data as any as Module;
+    return response.data;
   },
 
   /**
    * Update module configuration
    */
   updateConfig: async (name: string, config: Record<string, any>): Promise<Module> => {
-    const response = await apiClient.put<ModuleResponse>(
+    const response = await apiClient.put<Module>(
       `/modules/${name}/config`,
       { config }
     );
-    return response.data.data;
+    return response.data;
   },
 
   /**
@@ -130,10 +123,10 @@ export const modulesApi = {
    * Validate a module manifest
    */
   validate: async (manifest: ModuleManifest): Promise<{ valid: boolean; errors?: string[] }> => {
-    const response = await apiClient.post<{ success: boolean; data: { valid: boolean; errors?: string[] } }>(
+    const response = await apiClient.post<{ valid: boolean; errors?: string[] }>(
       '/modules/validate',
       { manifest }
     );
-    return response.data.data;
+    return response.data;
   },
 };
