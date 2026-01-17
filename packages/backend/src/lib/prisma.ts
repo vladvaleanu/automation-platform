@@ -2,8 +2,11 @@
  * Prisma client singleton
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { logger } from '../config/logger';
+
+// Re-export Prisma namespace for types
+export { PrismaClient, Prisma };
 
 const prismaClientSingleton = () => {
   return new PrismaClient({

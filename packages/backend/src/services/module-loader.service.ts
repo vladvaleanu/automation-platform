@@ -3,15 +3,16 @@
  * Handles dynamic loading and unloading of modules at runtime
  */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyPluginCallback } from 'fastify';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ModuleValidatorService } from '@nxforge/core/services';
 import type { ModuleManifest } from '@nxforge/core/types';
-import { prisma } from '../lib/prisma.js';
-import { logger } from '../config/logger.js';
+import { prisma, PrismaClient, Prisma } from '../lib/prisma.js';
+import { logger, Logger } from '../config/logger.js';
 import { MigrationRunnerService } from './migration-runner.service.js';
 import { jobExecutorService } from './job-executor.service.js';
+import type { ModuleContext } from '../types/module.types.js';
 
 // ============================================================================
 // Types
@@ -19,7 +20,7 @@ import { jobExecutorService } from './job-executor.service.js';
 
 interface LoadedModule {
   manifest: ModuleManifest;
-  plugin: any;
+  plugin: FastifyPluginCallback | null;
   registeredRoutes: string[];
   registeredJobs: string[];
 }
@@ -30,12 +31,12 @@ interface LoadedModule {
 
 export class ModuleLoaderService {
   private static loadedModules: Map<string, LoadedModule> = new Map();
-  private static app: any = null;
+  private static app: FastifyInstance | null = null;
 
   /**
    * Initialize the module loader with Fastify instance
    */
-  static initialize(app: any): void {
+  static initialize(app: FastifyInstance): void {
     this.app = app;
     logger.info('Module loader initialized');
   }
@@ -111,12 +112,12 @@ export class ModuleLoaderService {
         routes: registeredRoutes.length,
         jobs: registeredJobs.length,
       });
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Failed to load module ${moduleName}:`, error);
 
       // Don't update status if it's a Fastify "already booted" error
       // The status was already set to ENABLED by the caller and should remain
-      const errorMessage = error.message || '';
+      const errorMessage = error instanceof Error ? error.message : '';
       if (!errorMessage.includes('Root plugin has already booted')) {
         // Update status to REGISTERED for other errors
         await prisma.module.update({
@@ -185,7 +186,7 @@ export class ModuleLoaderService {
       });
 
       logger.info(`Module unloaded successfully: ${moduleName}`);
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Failed to unload module ${moduleName}:`, error);
       throw error;
     }
@@ -222,8 +223,9 @@ export class ModuleLoaderService {
     for (const module of enabledModules) {
       try {
         await this.loadModule(module.name);
-      } catch (error: any) {
-        logger.error(`Failed to load module ${module.name}:`, error.message);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to load module ${module.name}: ${errorMessage}`);
         // Continue loading other modules
       }
     }
@@ -268,8 +270,9 @@ export class ModuleLoaderService {
       const manifestContent = await fs.readFile(manifestPath, 'utf-8');
       const manifest = JSON.parse(manifestContent);
       return manifest as ModuleManifest;
-    } catch (error: any) {
-      throw new Error(`Failed to read manifest for ${moduleName}: ${error.message}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to read manifest for ${moduleName}: ${errorMessage}`);
     }
   }
 
@@ -315,7 +318,7 @@ export class ModuleLoaderService {
     moduleName: string,
     manifest: ModuleManifest,
     moduleDir: string
-  ): Promise<any> {
+  ): Promise<FastifyPluginCallback | null> {
     // Validate manifest.entry to prevent path traversal
     this.validatePath(moduleDir, manifest.entry);
 
@@ -325,8 +328,9 @@ export class ModuleLoaderService {
       // Dynamic import of the module
       const plugin = await import(pluginPath);
       return plugin.default || plugin;
-    } catch (error: any) {
-      throw new Error(`Failed to load plugin for ${moduleName}: ${error.message}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to load plugin for ${moduleName}: ${errorMessage}`);
     }
   }
 
@@ -337,7 +341,7 @@ export class ModuleLoaderService {
     moduleName: string,
     manifest: ModuleManifest,
     moduleDir: string,
-    moduleContext: any
+    moduleContext: ModuleContext
   ): Promise<string[]> {
     if (!this.app) {
       throw new Error('Fastify app not initialized');
@@ -346,12 +350,14 @@ export class ModuleLoaderService {
     const registeredRoutes: string[] = [];
     const prefix = `/api/v1/m/${moduleName}`;
 
-    for (const route of manifest.routes) {
+    for (const route of manifest.routes || []) {
       try {
         // Validate route.handler to prevent path traversal
-        this.validatePath(moduleDir, route.handler);
+        if (route.handler) {
+          this.validatePath(moduleDir, route.handler);
+        }
 
-        const handlerPath = path.join(moduleDir, route.handler);
+        const handlerPath = path.join(moduleDir, route.handler || '');
 
         // Import route handler
         const handler = await import(handlerPath);
@@ -359,7 +365,7 @@ export class ModuleLoaderService {
 
         // Register as Fastify plugin with prefix and context
         await this.app.register(
-          async (fastify: any) => {
+          async (fastify: FastifyInstance) => {
             await routeFunction(fastify, moduleContext);
           },
           { prefix }
@@ -369,8 +375,9 @@ export class ModuleLoaderService {
         registeredRoutes.push(fullPath);
 
         logger.debug(`Registered route: ${fullPath}`);
-      } catch (error: any) {
-        logger.error(`Failed to register route ${route.method} ${route.path}:`, error);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Failed to register route ${route.method} ${route.path}: ${errorMessage}`);
         throw error;
       }
     }
@@ -408,7 +415,7 @@ export class ModuleLoaderService {
               schedule: jobDef.schedule,
               timeout: jobDef.timeout || 300000,
               retries: jobDef.retries || 3,
-              config: (jobDef.config as any) || null,
+              config: (jobDef.config as Prisma.JsonValue) || Prisma.JsonNull,
               enabled: true,
             },
           });
@@ -423,7 +430,7 @@ export class ModuleLoaderService {
               schedule: jobDef.schedule,
               timeout: jobDef.timeout || 300000,
               retries: jobDef.retries || 3,
-              config: (jobDef.config as any) || null,
+              config: (jobDef.config as Prisma.JsonValue) || Prisma.JsonNull,
               enabled: true,
             },
           });
@@ -431,7 +438,7 @@ export class ModuleLoaderService {
 
         registeredJobs.push(jobName);
         logger.debug(`Registered job: ${moduleName}.${jobName}`);
-      } catch (error: any) {
+      } catch (error) {
         logger.error(`Failed to register job ${jobName}:`, error);
         // Continue with other jobs
       }
@@ -460,7 +467,7 @@ export class ModuleLoaderService {
         });
 
         logger.debug(`Unregistered job: ${jobName}`);
-      } catch (error: any) {
+      } catch (error) {
         logger.error(`Failed to unregister job ${jobName}:`, error);
       }
     }
@@ -500,7 +507,7 @@ export class ModuleLoaderService {
       if (results.length > 0) {
         logger.info(`Applied ${results.length} migration(s) for ${moduleName}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Migration failed for ${moduleName}:`, error);
       throw error;
     }
@@ -519,16 +526,24 @@ export class ModuleLoaderService {
   /**
    * Build module context with services
    */
-  private static buildModuleContext(moduleName: string, moduleVersion: string): any {
+  private static buildModuleContext(
+    moduleId: string,
+    moduleName: string,
+    moduleVersion: string,
+    moduleConfig?: Record<string, unknown>
+  ): ModuleContext {
     return {
-      moduleName,
-      moduleVersion,
+      module: {
+        id: moduleId,
+        name: moduleName,
+        version: moduleVersion,
+        config: moduleConfig,
+      },
       services: {
         prisma,
         logger,
-        // Add other services as needed
+        // Additional services can be added here as needed
       },
-      config: {}, // Module-specific config would go here
     };
   }
 }

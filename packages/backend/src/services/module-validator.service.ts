@@ -162,7 +162,7 @@ export class ModuleValidator {
   /**
    * Validate a module manifest
    */
-  static validate(manifest: any): ModuleValidationResult {
+  static validate(manifest: unknown): ModuleValidationResult {
     const errors: ModuleValidationError[] = [];
     const warnings: string[] = [];
 
@@ -178,10 +178,11 @@ export class ModuleValidator {
       }
     }
 
-    // Additional semantic validations
-    if (manifest) {
+    // Additional semantic validations (only if manifest is an object)
+    if (manifest && typeof manifest === 'object') {
+      const m = manifest as Record<string, unknown>;
       // Validate version is valid semver
-      if (manifest.version && !semver.valid(manifest.version)) {
+      if (m.version && typeof m.version === 'string' && !semver.valid(m.version)) {
         errors.push({
           field: 'version',
           message: 'Version must be valid semantic version (e.g., 1.0.0)',
@@ -190,11 +191,12 @@ export class ModuleValidator {
       }
 
       // Validate dependencies versions are semver ranges
-      if (manifest.dependencies?.modules) {
+      const deps = m.dependencies as Record<string, unknown> | undefined;
+      if (deps?.modules && typeof deps.modules === 'object') {
         for (const [moduleName, versionRange] of Object.entries(
-          manifest.dependencies.modules
+          deps.modules as Record<string, string>
         )) {
-          if (!semver.validRange(versionRange as string)) {
+          if (!semver.validRange(versionRange)) {
             errors.push({
               field: `dependencies.modules.${moduleName}`,
               message: `Invalid semver range: ${versionRange}`,
@@ -205,15 +207,15 @@ export class ModuleValidator {
       }
 
       // Validate at least one capability is defined
-      const hasCapabilities = manifest.routes || manifest.jobs || manifest.ui;
+      const hasCapabilities = m.routes || m.jobs || m.ui;
       if (!hasCapabilities) {
         warnings.push('Module has no capabilities defined (routes, jobs, or ui)');
       }
 
       // Validate route paths don't conflict
-      if (manifest.routes) {
+      if (m.routes && Array.isArray(m.routes)) {
         const routePaths = new Set<string>();
-        for (const route of manifest.routes) {
+        for (const route of m.routes as Array<{ method: string; path: string }>) {
           const routeKey = `${route.method}:${route.path}`;
           if (routePaths.has(routeKey)) {
             errors.push({
@@ -227,9 +229,12 @@ export class ModuleValidator {
       }
 
       // Validate config schema defaults match field types
-      if (manifest.config?.schema && manifest.config?.defaults) {
-        for (const [key, value] of Object.entries(manifest.config.defaults)) {
-          const fieldDef = manifest.config.schema[key];
+      const config = m.config as Record<string, unknown> | undefined;
+      if (config?.schema && config?.defaults && typeof config.schema === 'object' && typeof config.defaults === 'object') {
+        const schema = config.schema as Record<string, { type: string }>;
+        const defaults = config.defaults as Record<string, unknown>;
+        for (const [key, value] of Object.entries(defaults)) {
+          const fieldDef = schema[key];
           if (fieldDef) {
             const valueType = Array.isArray(value) ? 'array' : typeof value;
             if (fieldDef.type !== valueType && fieldDef.type !== 'password') {

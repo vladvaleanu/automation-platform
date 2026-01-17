@@ -3,7 +3,7 @@
  * Handles module registration, storage, and retrieval
  */
 
-import { prisma } from '../lib/prisma';
+import { prisma, Prisma } from '../lib/prisma';
 import {
   ModuleManifest,
   ModuleRegistryEntry,
@@ -200,7 +200,7 @@ export class ModuleRegistryService {
     status?: ModuleStatus;
     search?: string;
   }): Promise<ModuleRegistryEntry[]> {
-    const where: any = {};
+    const where: Prisma.ModuleWhereInput = {};
 
     if (filters?.status) {
       where.status = filters.status;
@@ -243,7 +243,7 @@ export class ModuleRegistryService {
     status: ModuleStatus
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const data: any = { status };
+      const data: Prisma.ModuleUpdateInput = { status };
 
       // Set timestamp based on status
       if (status === ModuleStatus.ENABLED) {
@@ -379,7 +379,7 @@ export class ModuleRegistryService {
   /**
    * Validate module manifest
    */
-  static validateManifest(manifest: any): ModuleValidationResult {
+  static validateManifest(manifest: unknown): ModuleValidationResult {
     return ModuleValidator.validate(manifest);
   }
 

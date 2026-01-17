@@ -5,7 +5,7 @@
 
 import { pathToFileURL } from 'url';
 import * as path from 'path';
-import { prisma } from '../lib/prisma.js';
+import { prisma, Prisma } from '../lib/prisma.js';
 import { logger } from '../config/logger.js';
 import type { JobContext, JobHandler } from '../types/job.types.js';
 import { env } from '../config/env.js';
@@ -15,6 +15,10 @@ import { httpService } from './http.service.js';
 import { LoggerService } from './logger.service.js';
 import { databaseService } from './database.service.js';
 import { eventBusService } from './event-bus.service.js';
+
+// Type for Prisma Job with all fields
+type PrismaJob = Awaited<ReturnType<typeof prisma.job.findUnique>> & {};
+type PrismaModule = Awaited<ReturnType<typeof prisma.module.findUnique>> & {};
 
 export class JobExecutorService {
   private handlerCache = new Map<string, JobHandler>();
@@ -27,9 +31,9 @@ export class JobExecutorService {
     jobId: string,
     moduleId: string,
     handlerPath: string,
-    config: Record<string, any>,
+    config: Record<string, unknown>,
     executionId: string
-  ): Promise<any> {
+  ): Promise<unknown> {
     // Get job and module details
     const job = await prisma.job.findUnique({
       where: { id: jobId },
@@ -112,9 +116,10 @@ export class JobExecutorService {
       this.handlerCache.set(cacheKey, handler);
 
       return handler;
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Failed to load handler: ${modulePath}`, error);
-      throw new Error(`Failed to load handler: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to load handler: ${errorMessage}`);
     }
   }
 
@@ -122,9 +127,9 @@ export class JobExecutorService {
    * Build the job context with all services
    */
   private buildJobContext(
-    job: any,
-    module: any,
-    config: Record<string, any>,
+    job: NonNullable<PrismaJob>,
+    module: NonNullable<PrismaModule>,
+    config: Record<string, unknown>,
     executionId: string
   ): JobContext {
     // Initialize log buffer
@@ -139,7 +144,7 @@ export class JobExecutorService {
       module: {
         id: module.id,
         name: module.name,
-        config: module.config || {},
+        config: (module.config as Record<string, unknown>) || {},
       },
       services: {
         // Prisma client for database access
