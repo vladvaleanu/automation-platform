@@ -1,63 +1,42 @@
 /**
- * Module system type definitions
+ * Module System Types (V2 Schema)
+ * Unified with @nxforge/core types
  */
 
-/**
- * Module manifest structure
- * This defines what a module must provide in its manifest.json
- */
+// ============================================================================
+// Module Manifest Types (V2)
+// ============================================================================
+
 export interface ModuleManifest {
-  // Core module information
-  name: string; // kebab-case identifier (e.g., "vmware-vcenter")
-  version: string; // Semantic version (e.g., "1.0.0")
-  displayName: string; // Human-readable name
-  description: string;
-  author: string;
-  license?: string;
+  // Identity
+  name: string;                    // kebab-case unique identifier (e.g., "consumption-monitor")
+  version: string;                 // semver (e.g., "1.0.0")
+  displayName: string;             // Human-readable name
+  description: string;             // Short description
+  author: string;                  // Author name or organization
+  license?: string;                // License type (e.g., "MIT")
 
-  // Module capabilities
-  capabilities: {
-    // Backend capabilities
-    api?: {
-      routes: RouteDefinition[];
-      middleware?: string[];
-    };
-    jobs?: {
-      handlers: JobHandlerDefinition[];
-    };
-    events?: {
-      listeners: EventListenerDefinition[];
-      emitters?: string[];
-    };
+  // Module structure
+  entry: string;                   // Backend entry point (e.g., "./dist/index.js")
 
-    // Frontend capabilities
-    ui?: {
-      pages: PageDefinition[];
-      components?: ComponentDefinition[];
-      navigation?: NavigationItem[];
-    };
-  };
+  // Backend configuration
+  routes?: RouteDefinition[];      // API routes to register
+  jobs?: Record<string, JobDefinition>;  // Job handlers (keyed by job ID)
+  migrations?: string;             // Path to migrations directory
 
-  // Module dependencies
-  dependencies?: {
-    modules?: Record<string, string>; // Other modules (name: version)
-    npm?: Record<string, string>; // NPM packages
-    system?: {
-      node?: string; // Node.js version
-      database?: string[]; // Required DB features
-    };
-  };
+  // Frontend configuration
+  ui?: UIConfiguration;            // Frontend UI configuration
 
-  // Configuration schema
-  config?: {
-    schema: Record<string, ConfigFieldDefinition>;
-    defaults?: Record<string, any>;
-  };
+  // Dependencies
+  dependencies?: Record<string, string>; // Package name -> semver range
 
-  // Permissions required
-  permissions?: string[];
+  // Permissions
+  permissions?: string[];          // Required permissions (e.g., ["database:read", "network:outbound"])
 
-  // Module metadata
+  // Settings schema
+  settings?: Record<string, SettingDefinition>;  // Module-specific settings
+
+  // Metadata
   metadata?: {
     homepage?: string;
     repository?: string;
@@ -67,121 +46,108 @@ export interface ModuleManifest {
   };
 }
 
-/**
- * API Route definition
- */
+// ============================================================================
+// Backend Route Configuration
+// ============================================================================
+
 export interface RouteDefinition {
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-  path: string; // Relative to /api/v1/modules/:moduleName
-  handler: string; // Path to handler file
-  permissions?: string[];
-  schema?: {
-    body?: Record<string, any>;
-    querystring?: Record<string, any>;
-    params?: Record<string, any>;
-    response?: Record<string, any>;
-  };
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;                    // Relative path (will be prefixed with /api/v1/m/{module-name})
+  handler?: string;                // Path to handler file (relative to module root)
+  middleware?: string[];           // Optional middleware names
+  description?: string;            // Route description for documentation
+  permissions?: string[];          // Required permissions for this route
 }
 
-/**
- * Job handler definition
- */
-export interface JobHandlerDefinition {
-  name: string;
-  handler: string; // Path to handler file
-  schedule?: string; // Cron expression for scheduled jobs
-  timeout?: number; // Max execution time in ms
-  retries?: number;
+// ============================================================================
+// Job Configuration
+// ============================================================================
+
+export interface JobDefinition {
+  name: string;                    // Display name
+  description?: string;            // Job description
+  handler: string;                 // Path to job handler file
+  schedule?: string | null;        // Cron expression or null for manual execution
+  timeout?: number;                // Timeout in milliseconds (default: 300000)
+  retries?: number;                // Number of retry attempts (default: 3)
+  config?: Record<string, JobConfigField>;  // Job-specific configuration schema
 }
 
-/**
- * Event listener definition
- */
-export interface EventListenerDefinition {
-  event: string; // Event name to listen for
-  handler: string; // Path to handler file
-  priority?: number;
-}
-
-/**
- * UI Page definition
- */
-export interface PageDefinition {
-  path: string; // Route path (e.g., "/settings")
-  component: string; // Path to React component
-  title: string;
-  permissions?: string[];
-  icon?: string;
-}
-
-/**
- * UI Component definition
- */
-export interface ComponentDefinition {
-  name: string;
-  component: string; // Path to React component
-  slot?: string; // Where to inject (e.g., "dashboard-widget")
-}
-
-/**
- * Navigation item definition
- */
-export interface NavigationItem {
-  label: string;
-  path: string;
-  icon?: string;
-  permissions?: string[];
-  order?: number;
-  children?: NavigationItem[];
-}
-
-/**
- * Configuration field definition
- */
-export interface ConfigFieldDefinition {
-  type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'password';
+export interface JobConfigField {
+  type: 'string' | 'number' | 'boolean' | 'select';
   label: string;
   description?: string;
-  required?: boolean;
   default?: any;
-  validation?: {
-    min?: number;
-    max?: number;
-    pattern?: string;
-    enum?: any[];
-  };
-  sensitive?: boolean; // Should be encrypted in storage
+  required?: boolean;
+  options?: Array<{ label: string; value: any }>;  // For 'select' type
+  min?: number;                    // For 'number' type
+  max?: number;                    // For 'number' type
+  pattern?: string;                // For 'string' type validation
 }
 
-/**
- * Module validation result
- */
-export interface ModuleValidationResult {
-  valid: boolean;
-  errors: ModuleValidationError[];
-  warnings?: string[];
+// ============================================================================
+// Frontend UI Configuration
+// ============================================================================
+
+export interface UIConfiguration {
+  entry: string;                   // UI entry point (e.g., "./ui/index.js")
+  sidebar: SidebarConfig;          // Sidebar menu configuration
+  routes: UIRouteDefinition[];     // Frontend routes
 }
 
-/**
- * Module validation error
- */
-export interface ModuleValidationError {
-  field: string;
-  message: string;
-  code: string;
+export interface SidebarConfig {
+  label: string;                   // Menu item label
+  icon: string;                    // Icon (emoji or icon name)
+  order?: number;                  // Display order (lower = higher in menu)
+  children?: SidebarItem[];        // Child menu items
 }
 
-/**
- * Module registry entry
- */
+export interface SidebarItem {
+  label: string;                   // Menu item label
+  path: string;                    // Full path (e.g., "/consumption/live")
+  icon?: string;                   // Optional icon
+  badge?: string;                  // Optional badge text
+}
+
+export interface UIRouteDefinition {
+  path: string;                    // React Router path pattern (e.g., "/consumption/*")
+  component: string;               // Path to component file
+  exact?: boolean;                 // Exact path matching
+}
+
+// ============================================================================
+// Module Settings
+// ============================================================================
+
+export interface SettingDefinition {
+  type: 'string' | 'number' | 'boolean' | 'select' | 'json' | 'password';
+  label: string;
+  description?: string;
+  default?: any;
+  required?: boolean;
+  options?: Array<{ label: string; value: any }>;  // For 'select' type
+  min?: number;                    // For 'number' type
+  max?: number;                    // For 'number' type
+  pattern?: string;                // For 'string' type validation
+  placeholder?: string;            // UI placeholder text
+  sensitive?: boolean;             // Should be encrypted in storage
+}
+
+// ============================================================================
+// Module Metadata (Database representation)
+// ============================================================================
+
 export interface ModuleRegistryEntry {
   id: string;
   name: string;
   version: string;
   displayName: string;
   description: string | null;
+  author: string;
   status: ModuleStatus;
   manifest: ModuleManifest;
+  config?: Record<string, any>;    // User-provided configuration values
+  path?: string;                   // File system path to module
   installedAt: Date | null;
   enabledAt: Date | null;
   disabledAt: Date | null;
@@ -189,23 +155,156 @@ export interface ModuleRegistryEntry {
   updatedAt: Date;
 }
 
-/**
- * Module status enum
- */
 export enum ModuleStatus {
-  REGISTERED = 'REGISTERED',
-  INSTALLING = 'INSTALLING',
-  ENABLED = 'ENABLED',
-  DISABLED = 'DISABLED',
-  UPDATING = 'UPDATING',
-  REMOVING = 'REMOVING',
+  REGISTERED = 'REGISTERED',       // Manifest registered but not installed
+  INSTALLING = 'INSTALLING',       // Installation in progress
+  INSTALLED = 'INSTALLED',         // Installed but not enabled
+  ENABLING = 'ENABLING',           // Being enabled
+  ENABLED = 'ENABLED',             // Active and running
+  DISABLING = 'DISABLING',         // Being disabled
+  DISABLED = 'DISABLED',           // Installed but inactive
+  UPDATING = 'UPDATING',           // Update in progress
+  REMOVING = 'REMOVING',           // Uninstall in progress
+  ERROR = 'ERROR',                 // Error state
+}
+
+// ============================================================================
+// Module Runtime Context
+// ============================================================================
+
+/**
+ * Context provided to modules at runtime
+ * Contains access to services, configuration, and utilities
+ */
+export interface ModuleContext {
+  module: {
+    id: string;
+    name: string;
+    version: string;
+    config?: Record<string, any>;
+  };
+  services: ModuleServices;
 }
 
 /**
- * Module installation options
+ * Context provided to job handlers
  */
-export interface ModuleInstallOptions {
-  autoEnable?: boolean;
-  skipDependencies?: boolean;
+export interface JobContext {
   config?: Record<string, any>;
+  module: {
+    id: string;
+    name: string;
+    config?: Record<string, any>;
+  };
+  services: ModuleServices;
+}
+
+/**
+ * Services available to modules
+ */
+export interface ModuleServices {
+  logger: any;          // LoggerService
+  prisma: any;          // PrismaClient
+  browser?: any;        // BrowserService
+  http?: any;           // HttpService
+  storage?: any;        // StorageService
+  notifications?: any;  // NotificationService
+  events?: any;         // EventBusService
+  database?: any;       // DatabaseService
+}
+
+// ============================================================================
+// Module Validation
+// ============================================================================
+
+export interface ModuleValidationResult {
+  valid: boolean;
+  errors: ModuleValidationError[];
+  warnings?: string[];
+}
+
+export interface ModuleValidationError {
+  field: string;
+  message: string;
+  code: string;
+  severity?: 'error' | 'warning';
+}
+
+// ============================================================================
+// Module Installation
+// ============================================================================
+
+export interface ModuleInstallOptions {
+  autoEnable?: boolean;            // Auto-enable after installation
+  skipMigrations?: boolean;        // Skip running database migrations
+  skipDependencies?: boolean;      // Skip dependency installation
+  force?: boolean;                 // Force installation even if validation fails
+  config?: Record<string, any>;    // Initial configuration
+}
+
+export interface ModuleInstallResult {
+  success: boolean;
+  moduleId?: string;
+  errors?: string[];
+  warnings?: string[];
+  migrationsApplied?: number;
+  dependenciesInstalled?: string[];
+}
+
+// ============================================================================
+// Module Lifecycle Events
+// ============================================================================
+
+export interface ModuleLifecycleEvent {
+  moduleId: string;
+  moduleName: string;
+  event: ModuleLifecycleEventType;
+  timestamp: Date;
+  details?: any;
+  error?: string;
+}
+
+export enum ModuleLifecycleEventType {
+  INSTALL_START = 'INSTALL_START',
+  INSTALL_SUCCESS = 'INSTALL_SUCCESS',
+  INSTALL_ERROR = 'INSTALL_ERROR',
+  ENABLE_START = 'ENABLE_START',
+  ENABLE_SUCCESS = 'ENABLE_SUCCESS',
+  ENABLE_ERROR = 'ENABLE_ERROR',
+  DISABLE_START = 'DISABLE_START',
+  DISABLE_SUCCESS = 'DISABLE_SUCCESS',
+  DISABLE_ERROR = 'DISABLE_ERROR',
+  UNINSTALL_START = 'UNINSTALL_START',
+  UNINSTALL_SUCCESS = 'UNINSTALL_SUCCESS',
+  UNINSTALL_ERROR = 'UNINSTALL_ERROR',
+  UPDATE_START = 'UPDATE_START',
+  UPDATE_SUCCESS = 'UPDATE_SUCCESS',
+  UPDATE_ERROR = 'UPDATE_ERROR',
+}
+
+// ============================================================================
+// Permission System
+// ============================================================================
+
+export type ModulePermission =
+  | 'database:read'
+  | 'database:write'
+  | 'network:outbound'
+  | 'network:inbound'
+  | 'storage:read'
+  | 'storage:write'
+  | 'system:execute'
+  | string;  // Allow custom permissions
+
+// ============================================================================
+// Module Query Filters
+// ============================================================================
+
+export interface ModuleQueryFilter {
+  status?: ModuleStatus | ModuleStatus[];
+  name?: string;
+  search?: string;              // Search in name, displayName, description
+  author?: string;
+  hasUI?: boolean;
+  hasJobs?: boolean;
 }
