@@ -314,25 +314,35 @@ export class JobService {
 
     const job = await this.queue.getJob(bullJobId);
     if (job) {
-      await job.remove();
+      // Get the jobId from the BullMQ job data to find the correct execution record
+      const { jobId } = job.data;
 
-      // Update execution record if it exists
-      const execution = await prisma.jobExecution.findFirst({
-        where: {
-          status: 'RUNNING',
-        },
-        orderBy: { startedAt: 'desc' },
-      });
+      try {
+        await job.remove();
+      } catch (error) {
+        logger.error(`Failed to remove job from queue: ${bullJobId}`, { error });
+      }
 
-      if (execution) {
-        await prisma.jobExecution.update({
-          where: { id: execution.id },
-          data: {
-            status: 'CANCELLED',
-            completedAt: new Date(),
-            error: 'Job cancelled by user',
+      // Update execution record if it exists - use jobId to find the correct record
+      if (jobId) {
+        const execution = await prisma.jobExecution.findFirst({
+          where: {
+            jobId,
+            status: 'RUNNING',
           },
+          orderBy: { startedAt: 'desc' },
         });
+
+        if (execution) {
+          await prisma.jobExecution.update({
+            where: { id: execution.id },
+            data: {
+              status: 'CANCELLED',
+              completedAt: new Date(),
+              error: 'Job cancelled by user',
+            },
+          });
+        }
       }
     }
 

@@ -98,6 +98,10 @@ export class JobExecutorService {
 
     // Use module path from database, or fall back to data/modules/{name}
     const moduleDir = module.path || path.resolve(process.cwd(), 'data', 'modules', module.name);
+
+    // Validate handler path to prevent directory traversal attacks
+    this.validatePath(moduleDir, handlerPath);
+
     const modulePath = path.join(moduleDir, handlerPath);
 
     try {
@@ -203,19 +207,46 @@ export class JobExecutorService {
   private async saveLogs(executionId: string): Promise<void> {
     const logs = this.logBuffers.get(executionId);
 
+    // Always delete the buffer to prevent memory leaks, even if save fails
+    this.logBuffers.delete(executionId);
+
     if (!logs || logs.length === 0) {
       return;
     }
 
     const logsText = logs.join('\n');
 
-    await prisma.jobExecution.update({
-      where: { id: executionId },
-      data: { logs: logsText },
-    });
+    try {
+      await prisma.jobExecution.update({
+        where: { id: executionId },
+        data: { logs: logsText },
+      });
+    } catch (error) {
+      logger.error(`Failed to save job logs for execution ${executionId}`, { error });
+      // Buffer already deleted, so no memory leak even on failure
+    }
+  }
 
-    // Clear the buffer
-    this.logBuffers.delete(executionId);
+  /**
+   * Clean up stale log buffers (call periodically to prevent memory leaks)
+   * @param maxBuffers - Maximum number of buffers to retain (default: 1000)
+   */
+  cleanupStaleBuffers(maxBuffers: number = 1000): number {
+    // This is a safety net - in normal operation, buffers are cleaned up after each job
+    // This method can be called periodically to clean up any orphaned buffers
+    let cleaned = 0;
+
+    if (this.logBuffers.size > maxBuffers) {
+      const toDelete = this.logBuffers.size - maxBuffers;
+      const keys = Array.from(this.logBuffers.keys()).slice(0, toDelete);
+      for (const key of keys) {
+        this.logBuffers.delete(key);
+        cleaned++;
+      }
+      logger.warn(`Cleaned up ${cleaned} stale log buffers (exceeded max of ${maxBuffers})`);
+    }
+
+    return cleaned;
   }
 
   /**
@@ -243,6 +274,25 @@ export class JobExecutorService {
       cachedHandlers: this.handlerCache.size,
       activeLogBuffers: this.logBuffers.size,
     };
+  }
+
+  /**
+   * Validate path to prevent directory traversal attacks
+   */
+  private validatePath(basePath: string, targetPath: string): void {
+    const resolvedBase = path.resolve(basePath);
+    const resolvedTarget = path.resolve(basePath, targetPath);
+
+    // Ensure the resolved target path starts with the base path
+    if (!resolvedTarget.startsWith(resolvedBase + path.sep) && resolvedTarget !== resolvedBase) {
+      throw new Error(`Path traversal detected: ${targetPath} attempts to access outside module directory`);
+    }
+
+    // Additional check: ensure no '..' in the normalized path
+    const normalizedPath = path.normalize(targetPath);
+    if (normalizedPath.includes('..')) {
+      throw new Error(`Invalid path: ${targetPath} contains directory traversal sequences`);
+    }
   }
 }
 

@@ -79,8 +79,13 @@ export class ModuleLoaderService {
         await this.runMigrations(moduleName, moduleRecord.version, manifest, moduleDir);
       }
 
-      // Build module context
-      const moduleContext = this.buildModuleContext(moduleName, moduleRecord.version);
+      // Build module context with all required parameters
+      const moduleContext = this.buildModuleContext(
+        moduleRecord.id,
+        moduleName,
+        moduleRecord.version,
+        moduleRecord.config as Record<string, unknown> | undefined
+      );
 
       // Load module plugin
       const plugin = await this.loadModulePlugin(moduleName, manifest, moduleDir);
@@ -123,7 +128,9 @@ export class ModuleLoaderService {
         await prisma.module.update({
           where: { name: moduleName },
           data: { status: 'REGISTERED' },
-        }).catch(() => {});
+        }).catch((updateError) => {
+          logger.error(`Failed to reset module status after load failure: ${moduleName}`, { updateError });
+        });
       }
 
       throw error;

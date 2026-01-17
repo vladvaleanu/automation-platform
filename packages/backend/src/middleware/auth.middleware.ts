@@ -15,11 +15,13 @@ declare module 'fastify' {
 /**
  * Require authentication
  * Verifies JWT token and attaches user to request
+ * Returns true if authenticated, false otherwise
  */
-export async function requireAuth(request: FastifyRequest, reply: FastifyReply) {
+export async function requireAuth(request: FastifyRequest, reply: FastifyReply): Promise<boolean> {
   try {
     await request.jwtVerify();
     request.user = request.user as TokenPayload;
+    return true;
   } catch (err) {
     reply.status(401).send({
       success: false,
@@ -32,6 +34,7 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
         timestamp: new Date().toISOString(),
       },
     });
+    return false;
   }
 }
 
@@ -40,7 +43,10 @@ export async function requireAuth(request: FastifyRequest, reply: FastifyReply) 
  */
 export function requireRole(...roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    await requireAuth(request, reply);
+    const isAuthenticated = await requireAuth(request, reply);
+    if (!isAuthenticated) {
+      return; // Response already sent by requireAuth
+    }
 
     const userRoles = request.user?.roles || [];
     const hasRole = roles.some(role => userRoles.includes(role) || userRoles.includes('admin'));
@@ -57,6 +63,7 @@ export function requireRole(...roles: string[]) {
           timestamp: new Date().toISOString(),
         },
       });
+      return; // Stop execution after sending response
     }
   };
 }
@@ -66,7 +73,10 @@ export function requireRole(...roles: string[]) {
  */
 export function requirePermission(...permissions: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    await requireAuth(request, reply);
+    const isAuthenticated = await requireAuth(request, reply);
+    if (!isAuthenticated) {
+      return; // Response already sent by requireAuth
+    }
 
     const userPermissions = request.user?.permissions || [];
 
@@ -80,7 +90,7 @@ export function requirePermission(...permissions: string[]) {
       if (userPermissions.includes(permission)) return true;
 
       // Check wildcard match (e.g., "modules:*" matches "modules:read")
-      const [resource, action] = permission.split(':');
+      const [resource] = permission.split(':');
       return userPermissions.includes(`${resource}:*`);
     });
 
@@ -96,6 +106,7 @@ export function requirePermission(...permissions: string[]) {
           timestamp: new Date().toISOString(),
         },
       });
+      return; // Stop execution after sending response
     }
   };
 }

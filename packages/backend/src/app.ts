@@ -71,7 +71,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     cache: 10000, // Store rate limit info for 10k IPs
     allowList: env.NODE_ENV === 'development' ? ['127.0.0.1'] : [], // Exempt localhost in dev
     redis: null, // Use in-memory store (can switch to Redis later for distributed)
-    skipOnError: true, // Don't block requests if rate limiter fails
+    skipOnError: false, // Block requests if rate limiter fails to prevent DoS bypass
     // Custom key generator (use IP address)
     keyGenerator: (request) => {
       return request.ip || request.headers['x-real-ip'] as string || request.headers['x-forwarded-for'] as string || 'unknown';
