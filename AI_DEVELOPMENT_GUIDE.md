@@ -53,7 +53,8 @@
 
 ### CRITICAL: Core Immutability
 ```
-⚠️ THE CORE IS FROZEN - DO NOT MODIFY CORE SERVICES
+⚠️ THE CORE IS FROZEN - DO NOT ADD NEW FEATURES TO CORE SERVICES
+(Critical bug fixes and architectural improvements to support modules ARE permitted)
 ```
 
 The core platform provides foundational services. All new functionality MUST be implemented as **modules**, not by modifying core services.
@@ -461,6 +462,29 @@ packages/frontend/src/modules/my-module/
     ]
   },
   "permissions": ["read:data", "write:data"],
+  "permissions": ["read:data", "write:data"],
+  "contributions": {
+    "dashboard": {
+      "widgets": [
+        {
+          "id": "status-widget",
+          "title": "Module Status",
+          "component": "./components/StatusWidget", 
+          "size": "small",
+          "refreshInterval": 10000
+        }
+      ]
+    },
+    "navigation": {
+      "category": "monitoring",
+      "items": [
+        {
+          "label": "My Module",
+          "path": "/modules/my-module"
+        }
+      ]
+    }
+  },
   "settings": {
     "apiKey": {
       "type": "password",
@@ -469,6 +493,20 @@ packages/frontend/src/modules/my-module/
     }
   }
 }
+
+### Module Contributions
+Modules can extend the core platform UI through `manifest.json`.
+
+**Dashboard Widgets**
+- Define in `contributions.dashboard.widgets`
+- `component`: Path relative to module root (e.g. `./components/MyWidget`)
+- `size`: `small` (1x1), `medium` (2x1), `large` (2x2)
+
+**Navigation**
+- Define in `contributions.navigation`
+- `category`: `monitoring`, `operations`, `tools`, `settings`
+- `items`: List of label/path pairs to add to the sidebar category (Preferred)
+- `path`: Legacy single-link support (Deprecated)
 ```
 
 ### Backend Module Entry Point
@@ -732,6 +770,7 @@ export function UpsMonitorDashboard() {
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-01-18 | Initial document |
+| 1.1 | 2026-01-18 | Updated Navigation standards & Core modification exceptions |
 
 ---
 

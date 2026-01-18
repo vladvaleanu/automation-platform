@@ -33,6 +33,40 @@
     }
   },
   "migrations": "./src/migrations",
+  "contributions": {
+    "dashboard": {
+      "widgets": [
+        {
+          "id": "live-power",
+          "title": "Live Power Usage",
+          "component": "./components/LivePowerWidget",
+          "size": "medium",
+          "refreshInterval": 5000
+        }
+      ]
+    },
+    "navigation": {
+      "category": "monitoring",
+      "items": [
+        {
+          "label": "Live Dashboard",
+          "path": "/consumption/live"
+        },
+        {
+          "label": "Endpoints",
+          "path": "/consumption/endpoints"
+        },
+        {
+          "label": "Reports",
+          "path": "/consumption/reports"
+        },
+        {
+          "label": "History",
+          "path": "/consumption/history"
+        }
+      ]
+    }
+  },
   "ui": {
     "entry": "./dist/ui/index.js",
     "sidebar": {

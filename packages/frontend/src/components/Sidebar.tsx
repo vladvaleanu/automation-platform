@@ -1,11 +1,12 @@
 /**
  * Sidebar Navigation Component
  * Hierarchical menu structure with user section at bottom
- * Dynamically builds menu from enabled module manifests
+ * Dynamically builds menu from enabled module manifests via backend API
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard,
   Settings,
@@ -20,11 +21,14 @@ import {
   LogOut,
   Moon,
   Sun,
+  Activity,
+  Briefcase,
+  PenTool,
   Box,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { moduleLoaderService } from '../services/module-loader.service';
+import { navigationApi } from '../api/navigation';
 
 interface MenuItem {
   label: string;
@@ -32,11 +36,19 @@ interface MenuItem {
   icon: any;
   children?: MenuItem[];
   badge?: string;
-  isModule?: boolean; // Flag to identify module items for special styling
+  isModule?: boolean;
 }
 
-// Core platform menu items (always shown)
-const coreMenuItems: MenuItem[] = [
+// Icon mapper for dynamic categories
+const CATEGORY_ICONS: Record<string, any> = {
+  monitoring: Activity,
+  operations: Briefcase,
+  tools: PenTool,
+  settings: Settings,
+};
+
+// Core platform menu items
+const CORE_MENU: MenuItem[] = [
   {
     label: 'Dashboard',
     path: '/dashboard',
@@ -52,6 +64,9 @@ const coreMenuItems: MenuItem[] = [
       { label: 'Events', path: '/events', icon: Radio },
     ],
   },
+];
+
+const SETTINGS_MENU: MenuItem[] = [
   {
     label: 'Settings',
     icon: Settings,
@@ -63,78 +78,72 @@ const coreMenuItems: MenuItem[] = [
   },
 ];
 
-/**
- * Build complete menu from core items + module items
- */
-function buildMenu(): MenuItem[] {
-  const menu = [...coreMenuItems];
-
-  // Get module sidebar configs
-  const moduleSidebarConfigs = moduleLoaderService.getSidebarConfig();
-
-  // Add each module's sidebar items with isModule flag
-  for (const config of moduleSidebarConfigs) {
-    menu.push({
-      label: config.label,
-      icon: Box, // Default icon for modules (can be enhanced to parse icon strings)
-      isModule: true, // Mark as module for special styling
-      children: config.children.map((child) => ({
-        label: child.label,
-        path: child.path,
-        icon: Box, // Default icon for module children
-        badge: child.badge,
-      })),
-    });
-  }
-
-  return menu;
-}
-
 function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(buildMenu());
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['Automation']);
 
-  // Initialize module loader on mount
-  useEffect(() => {
-    moduleLoaderService.initialize()
-      .then(() => {
-        // Rebuild menu after modules are loaded
-        setMenuItems(buildMenu());
-      })
-      .catch((err) => {
-        console.error('[Sidebar] Failed to initialize module loader:', err);
+  // State for expanded menus
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['Automation', 'Monitoring', 'Operations']);
+
+  // Fetch navigation structure
+  const { data: navStructure } = useQuery({
+    queryKey: ['navigation-structure'],
+    queryFn: async () => {
+      const response = await navigationApi.getStructure();
+      return response.success ? response.data : null;
+    },
+    // Refresh infrequently as navigation changes rarely
+    staleTime: 60000,
+  });
+
+  // Build the complete menu
+  const menuItems: MenuItem[] = [...CORE_MENU];
+
+  if (navStructure) {
+    // Process categories
+    Object.entries(navStructure.categories).forEach(([category, items]) => {
+      if (items.length === 0) return;
+
+      // Map backend items to MenuItem
+      const children: MenuItem[] = items.map(item => ({
+        label: item.label,
+        path: item.path,
+        icon: Box, // Default icon, assuming icon string handling needs a mapper if complex
+        isModule: true,
+      }));
+
+      // Find icon
+      const Icon = CATEGORY_ICONS[category] || Box;
+      const Label = category.charAt(0).toUpperCase() + category.slice(1);
+
+      menuItems.push({
+        label: Label,
+        icon: Icon,
+        children,
+        isModule: true // Mark category as module-related
       });
-  }, []);
+    });
 
-  // Rebuild menu when modules are loaded/changed
-  useEffect(() => {
-    const updateMenu = () => {
-      setMenuItems(buildMenu());
-    };
-
-    // Initial build
-    updateMenu();
-
-    // Listen for module changes event (event-driven updates only)
-    const handleModulesChanged = () => {
-      moduleLoaderService.reload().then(() => {
-        updateMenu();
+    // Handle uncategorized if any (append to Automation or create new section)
+    if (navStructure.uncategorized.length > 0) {
+      menuItems.push({
+        label: 'Modules',
+        icon: Package,
+        children: navStructure.uncategorized.map(item => ({
+          label: item.label,
+          path: item.path,
+          icon: Box,
+          isModule: true
+        })),
+        isModule: true
       });
-    };
+    }
+  }
 
-    window.addEventListener('modules-changed', handleModulesChanged);
-
-    // Removed polling - rely on event-driven updates only
-    // This eliminates 720 unnecessary requests per day (30 seconds × 24 hours)
-
-    return () => {
-      window.removeEventListener('modules-changed', handleModulesChanged);
-    };
-  }, []);
+  // Append settings at the end
+  menuItems.push(...SETTINGS_MENU);
 
   const toggleMenu = (label: string) => {
     setExpandedMenus((prev) =>
@@ -170,16 +179,18 @@ function Sidebar() {
 
       {/* Navigation Menu */}
       <nav className="flex-1 overflow-y-auto px-4 py-6">
-        {/* Core Menu Items */}
         <ul className="space-y-2">
-          {menuItems.filter(item => !item.isModule).map((item) => (
+          {menuItems.map((item) => (
             <li key={item.label}>
               {item.children ? (
                 // Parent menu item with children
                 <div>
                   <button
                     onClick={() => toggleMenu(item.label)}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${item.isModule
+                        ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      }`}
                   >
                     <span className="flex items-center gap-3">
                       <item.icon size={18} />
@@ -187,24 +198,23 @@ function Sidebar() {
                     </span>
                     <ChevronRight
                       size={16}
-                      className={`transform transition-transform ${
-                        expandedMenus.includes(item.label) ? 'rotate-90' : ''
-                      }`}
+                      className={`transform transition-transform ${expandedMenus.includes(item.label) ? 'rotate-90' : ''
+                        }`}
                     />
                   </button>
 
                   {/* Submenu */}
                   {expandedMenus.includes(item.label) && (
-                    <ul className="ml-4 mt-2 space-y-1 border-l-2 border-gray-200 dark:border-gray-800 pl-4">
+                    <ul className={`ml-4 mt-2 space-y-1 border-l-2 pl-4 ${item.isModule ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-gray-800'
+                      }`}>
                       {item.children.map((child) => (
-                        <li key={child.path}>
+                        <li key={child.path || child.label}>
                           <Link
-                            to={child.path!}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                              isActive(child.path)
+                            to={child.path || '#'}
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive(child.path)
                                 ? 'bg-blue-600 text-white font-medium'
                                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                            }`}
+                              }`}
                           >
                             <child.icon size={16} />
                             <span className="flex-1">{child.label}</span>
@@ -223,11 +233,10 @@ function Sidebar() {
                 // Single menu item without children
                 <Link
                   to={item.path!}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive(item.path)
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive(item.path)
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                    }`}
                 >
                   <item.icon size={18} />
                   <span>{item.label}</span>
@@ -236,73 +245,6 @@ function Sidebar() {
             </li>
           ))}
         </ul>
-
-        {/* Modules Section - visually differentiated */}
-        {menuItems.some(item => item.isModule) && (
-          <>
-            {/* Section Divider */}
-            <div className="my-4 flex items-center gap-2">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                Modules
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-700 to-transparent" />
-            </div>
-
-            {/* Module Menu Items */}
-            <ul className="space-y-2">
-              {menuItems.filter(item => item.isModule).map((item) => (
-                <li key={item.label}>
-                  <div>
-                    <button
-                      onClick={() => toggleMenu(item.label)}
-                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-purple-700 dark:text-purple-300 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-900 dark:hover:text-purple-200 border border-transparent hover:border-purple-200 dark:hover:border-purple-800"
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-5 w-5 items-center justify-center rounded bg-purple-100 dark:bg-purple-900/30">
-                          <item.icon size={14} className="text-purple-600 dark:text-purple-400" />
-                        </span>
-                        <span>{item.label}</span>
-                      </span>
-                      <ChevronRight
-                        size={16}
-                        className={`transform transition-transform ${
-                          expandedMenus.includes(item.label) ? 'rotate-90' : ''
-                        }`}
-                      />
-                    </button>
-
-                    {/* Module Submenu */}
-                    {expandedMenus.includes(item.label) && item.children && (
-                      <ul className="ml-4 mt-2 space-y-1 border-l-2 border-purple-200 dark:border-purple-800 pl-4">
-                        {item.children.map((child) => (
-                          <li key={child.path}>
-                            <Link
-                              to={child.path!}
-                              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                                isActive(child.path)
-                                  ? 'bg-purple-600 text-white font-medium'
-                                  : 'text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-700 dark:hover:text-purple-300'
-                              }`}
-                            >
-                              <child.icon size={16} />
-                              <span className="flex-1">{child.label}</span>
-                              {child.badge && (
-                                <span className="rounded-full bg-purple-600 px-2 py-0.5 text-xs font-medium text-white">
-                                  {child.badge}
-                                </span>
-                              )}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
       </nav>
 
       {/* User Section */}

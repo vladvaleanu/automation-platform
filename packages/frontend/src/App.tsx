@@ -37,7 +37,9 @@ const SettingsUsersPage = lazy(() => import('./pages/SettingsUsersPage'));
 const SettingsSystemPage = lazy(() => import('./pages/SettingsSystemPage'));
 
 // Module pages
+// Module pages
 const DocumentationPage = lazy(() => import('./modules/documentation-manager/pages/DocumentationPage'));
+const ModulePage = lazy(() => import('./pages/ModulePage'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -220,6 +222,17 @@ function App() {
                 />
 
                 {/* Module Routes */}
+                <Route
+                  path="/modules/:moduleName/*"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ModulePage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
                 <Route
                   path="/documentation"
                   element={

@@ -13,6 +13,8 @@ import JobsCard from '../components/dashboard/cards/JobsCard';
 import ExecutionsCard from '../components/dashboard/cards/ExecutionsCard';
 import QueueCard from '../components/dashboard/cards/QueueCard';
 import RecentExecutionsCard from '../components/dashboard/cards/RecentExecutionsCard';
+import DynamicWidget from '../components/dashboard/DynamicWidget';
+import { WidgetDefinition } from '../api/dashboard';
 
 // Default layout configuration
 const DEFAULT_CARDS: DashboardCardConfig[] = [
@@ -30,6 +32,18 @@ const AVAILABLE_CARD_TYPES = [
   { type: 'queue', label: 'Queue', icon: '📊' },
   { type: 'recent', label: 'Recent Activity', icon: '📋' },
 ];
+
+// Helper to get all card types including dynamic ones
+const getAvailableCardTypes = (widgets: WidgetDefinition[] = []) => {
+  const dynamicTypes = widgets.map(w => ({
+    type: `module:${w.moduleName}:${w.id}`,
+    label: w.title,
+    icon: '🧩', // Generic icon for module widgets
+    isDynamic: true,
+    widgetDef: w
+  }));
+  return [...AVAILABLE_CARD_TYPES, ...dynamicTypes];
+};
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
@@ -49,6 +63,15 @@ export default function DashboardPage() {
       return response.data;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch module widgets
+  const { data: moduleWidgets } = useQuery({
+    queryKey: ['dashboard-widgets'],
+    queryFn: async () => {
+      const response = await dashboardApi.getWidgets();
+      return response.success ? response.data : [];
+    },
   });
 
   // Fetch user's layout preferences
@@ -90,7 +113,7 @@ export default function DashboardPage() {
   }, [layoutData]);
 
   // Drag and drop handlers
-  const handleDragStart = (e: DragEvent<HTMLDivElement>, id: string) => {
+  const handleDragStart = (_e: DragEvent<HTMLDivElement>, id: string) => {
     setDraggingId(id);
   };
 
@@ -136,13 +159,24 @@ export default function DashboardPage() {
 
   const handleAddCard = (type: string) => {
     const newId = `${type}-${Date.now()}`;
+    const allTypes = getAvailableCardTypes(moduleWidgets || []);
+    const typeDef = allTypes.find(t => t.type === type);
+
+    // Determine initial size
+    let w = 1, h = 1;
+    if (typeDef && (typeDef as any).widgetDef) {
+      const size = (typeDef as any).widgetDef.size;
+      if (size === 'medium') { w = 2; h = 1; }
+      if (size === 'large') { w = 2; h = 2; }
+    }
+
     const newCard: DashboardCardConfig = {
       id: newId,
       type,
       x: 0,
       y: Math.max(...cards.map(c => c.y + c.h), 0),
-      w: 1,
-      h: 1,
+      w,
+      h,
       visible: true,
     };
     setCards([...cards, newCard]);
@@ -228,10 +262,31 @@ export default function DashboardPage() {
         ) : null;
         break;
       default:
-        content = <div>Unknown card type: {card.type}</div>;
+        // Check if it's a dynamic module widget
+        if (card.type.startsWith('module:')) {
+          const [_, moduleName, widgetId] = card.type.split(':');
+          const widgetDef = moduleWidgets?.find(w => w.moduleName === moduleName && w.id === widgetId);
+
+          if (widgetDef) {
+            content = (
+              <DynamicWidget
+                moduleName={moduleName}
+                componentPath={widgetDef.component}
+                title={widgetDef.title}
+                refreshInterval={widgetDef.refreshInterval}
+                className="h-full"
+              />
+            );
+          } else {
+            content = <div>Widget not found: {card.type}</div>;
+          }
+        } else {
+          content = <div>Unknown card type: {card.type}</div>;
+        }
     }
 
-    const cardTitle = AVAILABLE_CARD_TYPES.find(t => t.type === card.type)?.label || card.type;
+    const allTypes = getAvailableCardTypes(moduleWidgets);
+    const cardTitle = allTypes.find(t => t.type === card.type)?.label || card.type;
 
     return (
       <DashboardCard
@@ -243,7 +298,7 @@ export default function DashboardPage() {
         isExpanded={card.w > 1 || card.h > 1}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragOver={() => {}}
+        onDragOver={() => { }}
         onDrop={handleDrop}
         onRemove={handleRemoveCard}
         onToggleExpand={handleToggleExpand}
@@ -288,17 +343,16 @@ export default function DashboardPage() {
                   </button>
 
                   {showAddMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-                      {AVAILABLE_CARD_TYPES.map(cardType => {
+                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10 max-h-64 overflow-y-auto">
+                      {getAvailableCardTypes(moduleWidgets).map(cardType => {
                         const hasCard = cards.some(c => c.type === cardType.type && c.visible);
                         return (
                           <button
                             key={cardType.type}
                             onClick={() => !hasCard && handleAddCard(cardType.type)}
                             disabled={hasCard}
-                            className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
-                              hasCard ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${hasCard ? 'opacity-50 cursor-not-allowed' : ''
+                              }`}
                           >
                             <span>{cardType.icon}</span>
                             <span>{cardType.label}</span>
@@ -330,11 +384,10 @@ export default function DashboardPage() {
 
             <button
               onClick={handleToggleLock}
-              className={`p-2 rounded-md transition-colors ${
-                isLocked
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-              }`}
+              className={`p-2 rounded-md transition-colors ${isLocked
+                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                }`}
               title={isLocked ? 'Unlock dashboard' : 'Lock dashboard'}
             >
               {isLocked ? <Lock size={18} /> : <LockOpen size={18} />}

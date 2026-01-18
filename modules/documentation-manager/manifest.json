@@ -9,6 +9,17 @@
   "migrations": "migrations",
   "routes": [],
   "jobs": {},
+  "contributions": {
+    "navigation": {
+      "category": "tools",
+      "items": [
+        {
+          "label": "Knowledge Base",
+          "path": "/modules/documentation-manager"
+        }
+      ]
+    }
+  },
   "ui": {
     "entry": "frontend/pages/DocumentationPage.tsx",
     "sidebar": {

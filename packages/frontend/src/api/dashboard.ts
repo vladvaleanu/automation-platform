@@ -70,4 +70,18 @@ export const dashboardApi = {
   async saveLayout(layout: DashboardCardConfig[], locked: boolean): Promise<ApiResponse<{ message: string }>> {
     return apiClient.put<{ message: string }>('/dashboard/layout', { layout, locked });
   },
+
+  async getWidgets(): Promise<ApiResponse<WidgetDefinition[]>> {
+    return apiClient.get<WidgetDefinition[]>('/dashboard/widgets');
+  },
 };
+
+export interface WidgetDefinition {
+  id: string;
+  component: string;
+  title: string;
+  size: 'small' | 'medium' | 'large';
+  refreshInterval?: number;
+  order?: number;
+  moduleName: string;
+}

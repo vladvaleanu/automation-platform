@@ -51,6 +51,47 @@ export interface ModuleManifest {
     tags?: string[];
     category?: string;
   };
+
+  // Contribution points
+  contributions?: ModuleContributions;
+}
+
+// ============================================================================
+// Module Contributions
+// ============================================================================
+
+export interface ModuleContributions {
+  dashboard?: DashboardContribution;
+  navigation?: NavigationContribution;
+}
+
+export interface DashboardContribution {
+  widgets?: DashboardWidget[];
+}
+
+export interface DashboardWidget {
+  id: string;                    // Unique widget ID within module
+  component: string;             // Path to React component (relative to module)
+  title: string;                 // Display title
+  size: 'small' | 'medium' | 'large';
+  refreshInterval?: number;      // Auto-refresh in ms
+  order?: number;                // Display order
+}
+
+export interface NavigationContribution {
+  category: 'monitoring' | 'operations' | 'tools' | 'settings';
+  icon?: string;                 // Lucide icon name
+  label?: string;
+  items?: NavigationItem[];      // Multiple navigation items
+  order?: number;
+  path?: string;                 // Legacy single path
+}
+
+export interface NavigationItem {
+  label: string;
+  path: string;
+  icon?: string;
+  order?: number;
 }
 
 // ============================================================================

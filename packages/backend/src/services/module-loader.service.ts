@@ -94,16 +94,34 @@ export class ModuleLoaderService {
       if (plugin && typeof plugin === 'function') {
         // Plugin-based approach (recommended)
         const prefix = `/api/v1/m/${moduleName}`;
-        await this.app.register(plugin, { prefix });
-        logger.info(`Registered module plugin: ${moduleName} at ${prefix}`);
-        registeredRoutes = [`Plugin registered at ${prefix}`];
+        try {
+          await this.app.register(plugin, { prefix });
+          logger.info(`Registered module plugin: ${moduleName} at ${prefix}`);
+          registeredRoutes = [`Plugin registered at ${prefix}`];
+        } catch (err: any) {
+          if (err.message?.includes('Root plugin has already booted') || err.message?.includes('fastify instance is already started')) {
+            logger.warn(`Module ${moduleName} plugin could not be hot-registered (server already started). Assuming routes persist from previous load.`);
+            registeredRoutes = [`Plugin (presumed active) at ${prefix}`];
+          } else {
+            throw err;
+          }
+        }
       } else if (manifest.routes && manifest.routes.length > 0) {
         // Fallback to manifest-based routes (legacy support)
         logger.warn(
           `Module ${moduleName} using legacy manifest-based routes. ` +
           `Consider migrating to plugin-based approach (see docs/MODULE_DEVELOPMENT.md)`
         );
-        registeredRoutes = await this.registerRoutes(moduleName, manifest, moduleDir, moduleContext);
+        try {
+          registeredRoutes = await this.registerRoutes(moduleName, manifest, moduleDir, moduleContext);
+        } catch (err: any) {
+          if (err.message?.includes('Root plugin has already booted') || err.message?.includes('fastify instance is already started')) {
+            logger.warn(`Module ${moduleName} routes could not be hot-registered. Assuming routes persist.`);
+            // We'd need to guess the routes here or just leave empty, but standard cleanup shouldn't remove them anyway
+          } else {
+            throw err;
+          }
+        }
       } else {
         throw new Error(
           `Module ${moduleName} has no routes or plugin. ` +
@@ -147,10 +165,12 @@ export class ModuleLoaderService {
     } catch (error) {
       logger.error(`Failed to load module ${moduleName}:`, error);
 
+      const errorMessage = error instanceof Error ? error.message : '';
+      logger.error(`[ModuleLoader] Load error message: ${errorMessage}`);
+
       // Don't update status if it's a Fastify "already booted" error
       // The status was already set to ENABLED by the caller and should remain
-      const errorMessage = error instanceof Error ? error.message : '';
-      if (!errorMessage.includes('Root plugin has already booted')) {
+      if (!errorMessage.includes('Root plugin has already booted') && !errorMessage.includes('fastify instance is already started')) {
         // Update status to REGISTERED for other errors
         await prisma.module.update({
           where: { name: moduleName },

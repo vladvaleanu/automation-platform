@@ -9,6 +9,7 @@ import rateLimit from '@fastify/rate-limit';
 import { env } from './config/env';
 import { logger } from './config/logger';
 import { authRoutes } from './routes/auth.routes';
+import { contributionsRoutes } from './routes/contributions.routes';
 import { prisma } from './lib/prisma';
 import { browserService } from './services/browser.service';
 import { ModuleLoaderService } from './services/module-loader.service';
@@ -213,6 +214,16 @@ export async function buildApp(): Promise<FastifyInstance> {
       app.log.info('Event routes registered successfully');
     } catch (error) {
       app.log.error(error, 'Failed to load/register event routes');
+      throw error;
+    }
+
+    // Register contribution routes (Phase 4)
+    try {
+      app.log.info('Registering contribution routes...');
+      await instance.register(contributionsRoutes, { prefix: '/' });
+      app.log.info('Contribution routes registered successfully');
+    } catch (error) {
+      app.log.error(error, 'Failed to register contribution routes');
       throw error;
     }
 
