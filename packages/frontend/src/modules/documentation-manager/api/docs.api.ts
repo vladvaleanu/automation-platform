@@ -160,6 +160,7 @@ export interface DocumentFilters {
   authorId?: string;
   limit?: number;
   offset?: number;
+  trashed?: boolean; // Added trashed filter
 }
 
 /**
@@ -238,6 +239,7 @@ export const documentsApi = {
     if (filters?.tags) {
       filters.tags.forEach(tag => params.append('tags', tag));
     }
+    if (filters?.trashed !== undefined) params.append('trashed', filters.trashed.toString());
 
     const queryString = params.toString();
     const url = queryString ? `/m/documentation-manager/documents?${queryString}` : '/m/documentation-manager/documents';
@@ -265,9 +267,16 @@ export const documentsApi = {
     return response;
   },
 
-  async delete(id: string) {
-    const response = await apiClient.delete(`/m/documentation-manager/documents/${id}`);
-    return response;
+  delete: (id: string) => {
+    return apiClient.delete<{ message: string }>(`/m/documentation-manager/documents/${id}`);
+  },
+
+  restore: (id: string) => {
+    return apiClient.post<Document>(`/m/documentation-manager/documents/${id}/restore`, {});
+  },
+
+  permanentDelete: (id: string) => {
+    return apiClient.delete<{ message: string }>(`/m/documentation-manager/documents/${id}/permanent`);
   },
 
   async getVersions(id: string) {
@@ -282,6 +291,27 @@ export const documentsApi = {
 
   async restoreVersion(id: string, version: number) {
     const response = await apiClient.post<Document>(`/m/documentation-manager/documents/${id}/versions/${version}/restore`, {});
+    return response;
+  },
+
+  /**
+   * Get AI accessibility status for a document
+   */
+  async getAiAccess(id: string) {
+    const response = await apiClient.get<{ id: string; aiAccessible: boolean; hasEmbedding: boolean }>(
+      `/m/documentation-manager/documents/${id}/ai-access`
+    );
+    return response;
+  },
+
+  /**
+   * Toggle AI accessibility for a document (Forge RAG integration)
+   */
+  async setAiAccess(id: string, aiAccessible: boolean) {
+    const response = await apiClient.put<{ id: string; aiAccessible: boolean; message: string }>(
+      `/m/documentation-manager/documents/${id}/ai-access`,
+      { aiAccessible }
+    );
     return response;
   },
 };

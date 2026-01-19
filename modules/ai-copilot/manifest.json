@@ -1,0 +1,109 @@
+{
+    "name": "ai-copilot",
+    "version": "0.1.0",
+    "displayName": "Forge AI Copilot",
+    "description": "Local infrastructure intelligence operator - AI assistant for datacenter operations",
+    "author": "NxForge Team",
+    "license": "MIT",
+    "entry": "./src/index.ts",
+    "migrations": "migrations",
+    "routes": [],
+    "jobs": {},
+    "contributions": {
+        "navigation": {
+            "category": "forge",
+            "items": [
+                {
+                    "label": "Command Center",
+                    "path": "/modules/ai-copilot/chat",
+                    "icon": "MessageSquare",
+                    "order": 1
+                },
+                {
+                    "label": "AI Knowledge",
+                    "path": "/modules/ai-copilot/knowledge",
+                    "icon": "BookOpen",
+                    "order": 2
+                },
+                {
+                    "label": "Settings",
+                    "path": "/modules/ai-copilot/settings",
+                    "icon": "Settings",
+                    "order": 3
+                }
+            ]
+        }
+    },
+    "ui": {
+        "entry": "frontend/pages/ForgePage.tsx",
+        "sidebar": {
+            "label": "Forge",
+            "icon": "Sparkles",
+            "order": 5,
+            "children": [
+                {
+                    "label": "Command Center",
+                    "path": "/modules/ai-copilot",
+                    "icon": "Cpu"
+                },
+                {
+                    "label": "AI Knowledge",
+                    "path": "/modules/ai-copilot/knowledge",
+                    "icon": "BookOpen"
+                },
+                {
+                    "label": "Settings",
+                    "path": "/modules/ai-copilot/settings",
+                    "icon": "Settings"
+                }
+            ]
+        },
+        "routes": [
+            {
+                "path": "/modules/ai-copilot",
+                "component": "frontend/pages/ForgePage.tsx"
+            },
+            {
+                "path": "/modules/ai-copilot/knowledge",
+                "component": "frontend/pages/KnowledgePage.tsx"
+            },
+            {
+                "path": "/modules/ai-copilot/settings",
+                "component": "frontend/pages/SettingsPage.tsx"
+            }
+        ]
+    },
+    "permissions": [
+        "forge:read",
+        "forge:write",
+        "forge:admin",
+        "knowledge:approve"
+    ],
+    "dependencies": {},
+    "settings": {
+        "ollamaUrl": {
+            "type": "string",
+            "label": "Ollama URL",
+            "description": "Base URL for Ollama API",
+            "default": "http://localhost:11434"
+        },
+        "defaultModel": {
+            "type": "string",
+            "label": "Default Model",
+            "description": "Default LLM model for chat",
+            "default": "llama3.1"
+        },
+        "strictnessLevel": {
+            "type": "number",
+            "label": "Strictness Level",
+            "description": "How strictly Forge enforces SOPs (1-10)",
+            "default": 5
+        },
+        "batchWindowSeconds": {
+            "type": "number",
+            "label": "Batch Window",
+            "description": "Seconds to wait before grouping alerts",
+            "default": 30
+        }
+    }
+}

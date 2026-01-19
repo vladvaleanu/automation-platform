@@ -1,0 +1,369 @@
+/**
+ * ForgeGlobalChat - Persistent floating chat widget
+ * Available on all pages, can be minimized or expanded
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { ChatMessage } from '../../modules/ai-copilot/types';
+import {
+    SparklesIcon,
+    XMarkIcon,
+    ChatBubbleLeftRightIcon,
+    ArrowsPointingOutIcon,
+    ArrowsPointingInIcon,
+    PaperAirplaneIcon,
+    Cog6ToothIcon,
+} from '@heroicons/react/24/outline';
+
+// Chat storage key for persistence
+const CHAT_STORAGE_KEY = 'forge-global-chat';
+const CHAT_STATE_KEY = 'forge-chat-state';
+
+// Page context mapping
+function getPageContext(pathname: string): { name: string; icon: string; color: string } {
+    if (pathname.startsWith('/dashboard')) {
+        return { name: 'Dashboard', icon: '📊', color: 'text-blue-400' };
+    }
+    if (pathname.startsWith('/incidents')) {
+        return { name: 'Incidents', icon: '🔔', color: 'text-red-400' };
+    }
+    if (pathname.startsWith('/modules')) {
+        return { name: 'Modules', icon: '📦', color: 'text-indigo-400' };
+    }
+    if (pathname.startsWith('/jobs')) {
+        return { name: 'Jobs', icon: '⚡', color: 'text-yellow-400' };
+    }
+    if (pathname.startsWith('/executions')) {
+        return { name: 'Executions', icon: '🔄', color: 'text-green-400' };
+    }
+    if (pathname.startsWith('/events')) {
+        return { name: 'Events', icon: '📡', color: 'text-purple-400' };
+    }
+    if (pathname.startsWith('/modules/consumption')) {
+        return { name: 'Power Monitoring', icon: '⚡', color: 'text-amber-400' };
+    }
+    if (pathname.startsWith('/settings')) {
+        return { name: 'Settings', icon: '⚙️', color: 'text-gray-400' };
+    }
+    return { name: 'NxForge', icon: '🏠', color: 'text-gray-400' };
+}
+
+// Initial system message
+const INITIAL_MESSAGES: ChatMessage[] = [
+    {
+        id: 'system-1',
+        role: 'system',
+        content: 'Forge is ready. Ask about infrastructure, incidents, or SOPs.',
+        timestamp: new Date(),
+    },
+];
+
+interface ChatState {
+    isOpen: boolean;
+    isExpanded: boolean;
+}
+
+export function ForgeGlobalChat() {
+    const location = useLocation();
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Chat visibility state
+    const [chatState, setChatState] = useState<ChatState>(() => {
+        try {
+            const saved = localStorage.getItem(CHAT_STATE_KEY);
+            return saved ? JSON.parse(saved) : { isOpen: false, isExpanded: false };
+        } catch {
+            return { isOpen: false, isExpanded: false };
+        }
+    });
+
+    // Chat messages (persisted)
+    const [messages, setMessages] = useState<ChatMessage[]>(() => {
+        try {
+            const saved = localStorage.getItem(CHAT_STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+            }
+        } catch { }
+        return INITIAL_MESSAGES;
+    });
+
+    const [input, setInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+
+    // Persist messages
+    useEffect(() => {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    }, [messages]);
+
+    // Persist chat state
+    useEffect(() => {
+        localStorage.setItem(CHAT_STATE_KEY, JSON.stringify(chatState));
+    }, [chatState]);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isTyping]);
+
+    // Focus input when opened
+    useEffect(() => {
+        if (chatState.isOpen) {
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [chatState.isOpen]);
+
+    const toggleOpen = useCallback(() => {
+        setChatState(prev => ({ ...prev, isOpen: !prev.isOpen }));
+    }, []);
+
+    const toggleExpanded = useCallback(() => {
+        setChatState(prev => ({ ...prev, isExpanded: !prev.isExpanded }));
+    }, []);
+
+    const handleSend = useCallback(() => {
+        if (!input.trim()) return;
+
+        const userMessage: ChatMessage = {
+            id: `user-${Date.now()}`,
+            role: 'user',
+            content: input,
+            timestamp: new Date(),
+        };
+
+        setMessages(prev => [...prev, userMessage]);
+        setInput('');
+        setIsTyping(true);
+
+        // Get current page context for response
+        const pageContext = getPageContext(location.pathname);
+
+        // Mock Forge response with page awareness
+        setTimeout(() => {
+            const forgeMessage: ChatMessage = {
+                id: `forge-${Date.now()}`,
+                role: 'forge',
+                content: getMockResponse(input, pageContext.name),
+                timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, forgeMessage]);
+            setIsTyping(false);
+        }, 1000 + Math.random() * 1000);
+    }, [input, location.pathname]);
+
+    const handleClear = useCallback(() => {
+        setMessages(INITIAL_MESSAGES);
+    }, []);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    };
+
+    // Don't show fab on the Forge module pages (main or chat)
+    const isOnForgePage = location.pathname.startsWith('/modules/ai-copilot');
+
+    if (isOnForgePage) {
+        return null;
+    }
+
+    const { isOpen, isExpanded } = chatState;
+
+    // Fab button (minimized state)
+    if (!isOpen) {
+        return (
+            <button
+                onClick={toggleOpen}
+                className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 hover:scale-105 transition-all"
+                title="Open Forge Chat"
+            >
+                <SparklesIcon className="h-6 w-6" />
+                {/* Notification dot */}
+                <span className="absolute top-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900" />
+            </button>
+        );
+    }
+
+    // Get current page context
+    const pageContext = getPageContext(location.pathname);
+
+    // Panel dimensions
+    const panelClass = isExpanded
+        ? 'w-[500px] h-[600px]'
+        : 'w-[360px] h-[480px]';
+
+    return (
+        <div
+            className={`fixed bottom-6 right-6 z-50 ${panelClass} flex flex-col bg-gray-900 rounded-2xl shadow-2xl border border-gray-800 overflow-hidden transition-all duration-200`}
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-b border-gray-800">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                        <SparklesIcon className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-white text-sm">Forge</span>
+                            <span className="text-xs text-green-400">●</span>
+                        </div>
+                        <span className={`text-xs ${pageContext.color}`}>
+                            {pageContext.icon} {pageContext.name}
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-1">
+                    <Link
+                        to="/modules/ai-copilot/settings"
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                        title="Settings"
+                    >
+                        <Cog6ToothIcon className="h-4 w-4" />
+                    </Link>
+                    <button
+                        onClick={toggleExpanded}
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                        title={isExpanded ? 'Shrink' : 'Expand'}
+                    >
+                        {isExpanded ? (
+                            <ArrowsPointingInIcon className="h-4 w-4" />
+                        ) : (
+                            <ArrowsPointingOutIcon className="h-4 w-4" />
+                        )}
+                    </button>
+                    <button
+                        onClick={toggleOpen}
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                        title="Close"
+                    >
+                        <XMarkIcon className="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {messages.map((message) => (
+                    <MessageBubble key={message.id} message={message} />
+                ))}
+                {isTyping && (
+                    <div className="flex items-center gap-2 text-gray-400 text-sm">
+                        <div className="flex gap-1">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                        <span>Forge is thinking...</span>
+                    </div>
+                )}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="flex-shrink-0 p-3 bg-gray-800/50 border-t border-gray-800">
+                <div className="flex items-center gap-2">
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Ask Forge..."
+                        className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <button
+                        onClick={handleSend}
+                        disabled={!input.trim()}
+                        className="p-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:hover:bg-purple-600 text-white rounded-lg transition-colors"
+                    >
+                        <PaperAirplaneIcon className="h-4 w-4" />
+                    </button>
+                </div>
+                <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                    <button onClick={handleClear} className="hover:text-gray-300 transition-colors">
+                        Clear chat
+                    </button>
+                    <Link to="/modules/ai-copilot/chat" className="hover:text-purple-400 transition-colors flex items-center gap-1">
+                        <ChatBubbleLeftRightIcon className="h-3 w-3" />
+                        Open full view
+                    </Link>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Message bubble component
+function MessageBubble({ message }: { message: ChatMessage }) {
+    const isUser = message.role === 'user';
+    const isSystem = message.role === 'system';
+
+    if (isSystem) {
+        return (
+            <div className="text-center text-xs text-gray-500 py-2">
+                {message.content}
+            </div>
+        );
+    }
+
+    return (
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+            <div
+                className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${isUser
+                    ? 'bg-purple-600 text-white rounded-br-sm'
+                    : 'bg-gray-800 text-gray-100 rounded-bl-sm'
+                    }`}
+            >
+                {message.content}
+            </div>
+        </div>
+    );
+}
+
+// Mock responses with page context awareness
+function getMockResponse(input: string, pageContext: string): string {
+    const lower = input.toLowerCase();
+
+    // Context-aware responses based on current page
+    if (lower.includes('where') && lower.includes('am i') || lower.includes('context') || lower.includes('page')) {
+        return `You're currently viewing the **${pageContext}** section. I can help with anything related to this area or any other infrastructure questions.`;
+    }
+
+    if (lower.includes('incident') || lower.includes('alert')) {
+        return `I see 2 active incidents in the Situation Deck: PDU_CLUSTER_A has critical alerts, and COOLING_ZONE_B shows warning-level temperature rise.\n\n📍 *Context: ${pageContext}*\n\nWould you like me to analyze either of these?`;
+    }
+
+    if (lower.includes('sop') || lower.includes('procedure')) {
+        return `I can help with SOPs. We have procedures for: Power Failover, Cooling Emergency, Network Incident Response, and Access Control.\n\n📍 *Context: ${pageContext}*\n\nWhich one do you need?`;
+    }
+
+    if (lower.includes('power')) {
+        return `Current power status:\n• Zone A: 78% capacity (normal)\n• Zone B: 92% capacity (elevated)\n\nThe high Zone B reading correlates with the PDU cluster alerts.\n\n📍 *Context: ${pageContext}*`;
+    }
+
+    if (lower.includes('help') || lower.includes('/help')) {
+        return `I can help with:\n• **Incidents** - analyze alerts and suggest actions\n• **SOPs** - find and explain procedures\n• **Infrastructure** - power, cooling, network status\n• **Knowledge** - search documentation\n\n📍 Currently viewing: **${pageContext}**`;
+    }
+
+    // Page-specific suggestions
+    if (pageContext === 'Incidents') {
+        return `You're viewing **Incidents** monitoring. I can see the active alerts on this page.\n\nAsk me to:\n• Analyze a specific incident\n• Suggest remediation steps\n• Find related SOPs\n• Explain the impact`;
+    }
+
+    if (pageContext === 'Jobs') {
+        return `I see you're viewing **Jobs**. I can help you understand job schedules, troubleshoot failures, or explain job configurations.\n\nWhat would you like to know?`;
+    }
+
+    if (pageContext === 'Power Monitoring') {
+        return `You're in **Power Monitoring**. I can analyze consumption trends, compare readings across endpoints, or alert you to anomalies.\n\nWhat would you like to explore?`;
+    }
+
+    return `I understand your question about "${input.substring(0, 40)}${input.length > 40 ? '...' : ''}"\n\n📍 *Context: ${pageContext}*\n\nIn Phase 2, I'll connect to Ollama to provide real AI analysis with RAG.`;
+}
+
+export default ForgeGlobalChat;

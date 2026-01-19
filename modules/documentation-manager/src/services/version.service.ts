@@ -3,8 +3,8 @@
  * Handles document version control
  */
 
-// import { prisma } from '../../../../packages/backend/src/lib/prisma';
 import { PrismaClient } from '@prisma/client';
+import { DocumentVersionRow } from '../types/document.types';
 
 export class VersionService {
   private prisma: PrismaClient;
@@ -51,7 +51,7 @@ export class VersionService {
    * Get all versions for a document
    */
   async getVersions(documentId: string) {
-    const versions = await this.prisma.$queryRaw<Array<any>>`
+    const versions = await this.prisma.$queryRaw<DocumentVersionRow[]>`
       SELECT
         v.id,
         v.version,
@@ -76,7 +76,7 @@ export class VersionService {
    * Get specific version
    */
   async getVersion(documentId: string, version: number) {
-    const versions = await this.prisma.$queryRaw<Array<any>>`
+    const versions = await this.prisma.$queryRaw<DocumentVersionRow[]>`
       SELECT
         v.*,
         json_build_object(

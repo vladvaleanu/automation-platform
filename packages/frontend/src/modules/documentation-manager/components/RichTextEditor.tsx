@@ -3,11 +3,11 @@
  * TipTap-based WYSIWYG editor for document editing
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
+// Link is included in StarterKit
 import Placeholder from '@tiptap/extension-placeholder';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight, common } from 'lowlight';
@@ -46,16 +46,16 @@ export function RichTextEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false, // We'll use CodeBlockLowlight instead
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            class: 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer',
+          },
+        },
       }),
       Image.configure({
         inline: true,
         allowBase64: true,
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-blue-600 dark:text-blue-400 hover:underline cursor-pointer',
-        },
       }),
       Placeholder.configure({
         placeholder,
@@ -71,7 +71,7 @@ export function RichTextEditor({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-gray dark:prose-invert max-w-none focus:outline-none min-h-[400px] p-4',
+        class: 'prose prose-gray dark:prose-invert max-w-none focus:outline-none min-h-[400px] p-4 text-gray-900 dark:text-gray-100 prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-p:text-gray-900 dark:prose-p:text-gray-100 prose-strong:text-gray-900 dark:prose-strong:text-gray-100',
       },
     },
   });
@@ -113,27 +113,24 @@ export function RichTextEditor({
           {/* Text Formatting */}
           <button
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('bold') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('bold') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Bold"
           >
             <BoldIcon className="h-4 w-4" />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('italic') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('italic') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Italic"
           >
             <ItalicIcon className="h-4 w-4" />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleCode().run()}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('code') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('code') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Inline Code"
           >
             <CodeBracketIcon className="h-4 w-4" />
@@ -144,27 +141,24 @@ export function RichTextEditor({
           {/* Headings */}
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm ${
-              editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm text-gray-700 dark:text-gray-300 ${editor.isActive('heading', { level: 1 }) ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Heading 1"
           >
             H1
           </button>
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm ${
-              editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm text-gray-700 dark:text-gray-300 ${editor.isActive('heading', { level: 2 }) ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Heading 2"
           >
             H2
           </button>
           <button
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm ${
-              editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-sm text-gray-700 dark:text-gray-300 ${editor.isActive('heading', { level: 3 }) ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Heading 3"
           >
             H3
@@ -175,18 +169,16 @@ export function RichTextEditor({
           {/* Lists */}
           <button
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('bulletList') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('bulletList') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Bullet List"
           >
             <ListBulletIcon className="h-4 w-4" />
           </button>
           <button
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('orderedList') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('orderedList') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Numbered List"
           >
             <Bars3BottomLeftIcon className="h-4 w-4" />
@@ -197,9 +189,8 @@ export function RichTextEditor({
           {/* Code Block */}
           <button
             onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
-              editor.isActive('codeBlock') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 ${editor.isActive('codeBlock') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Code Block"
           >
             {'</>'}
@@ -210,9 +201,8 @@ export function RichTextEditor({
           {/* Link */}
           <button
             onClick={setLink}
-            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 ${
-              editor.isActive('link') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 ${editor.isActive('link') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Add Link"
           >
             <LinkIcon className="h-4 w-4" />
@@ -221,7 +211,7 @@ export function RichTextEditor({
           {/* Image */}
           <button
             onClick={addImage}
-            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             title="Add Image"
           >
             <PhotoIcon className="h-4 w-4" />
@@ -232,9 +222,8 @@ export function RichTextEditor({
           {/* Quote */}
           <button
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm ${
-              editor.isActive('blockquote') ? 'bg-gray-200 dark:bg-gray-600' : ''
-            }`}
+            className={`px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 ${editor.isActive('blockquote') ? 'bg-gray-200 dark:bg-gray-600 text-gray-900 dark:text-white' : ''
+              }`}
             title="Quote"
           >
             "
@@ -243,7 +232,7 @@ export function RichTextEditor({
           {/* Horizontal Rule */}
           <button
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
-            className="px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+            className="px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
             title="Horizontal Rule"
           >
             ―

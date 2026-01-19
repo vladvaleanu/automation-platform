@@ -4,12 +4,14 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-// import { prisma } from '../lib/prisma';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { pipeline } from 'stream/promises';
 import { createWriteStream, createReadStream } from 'fs';
+import { ModuleContext } from '../types';
+import { registerAuthHook, getUserId } from '../middleware/auth.middleware';
+import { sendSuccess, sendError, sendNotFound, sendBadRequest, sendForbidden } from '../utils/response.utils';
+import '../types/fastify.d';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documentation');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -25,26 +27,11 @@ const ALLOWED_MIMETYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ];
 
-// ... imports
-import { ModuleContext } from '../types';
-
-// ...
-
 export async function attachmentsRoutes(app: FastifyInstance, context: ModuleContext) {
   const prisma = context.services.prisma;
 
-  // Add authentication hook for all routes in this plugin
-  // ... (rest of the file using local prisma variable)
-  app.addHook('onRequest', async (request, reply) => {
-    try {
-      await (request as any).jwtVerify();
-    } catch (err) {
-      reply.status(401).send({
-        success: false,
-        error: { message: 'Unauthorized - Invalid or missing token', statusCode: 401 },
-      });
-    }
-  });
+  // Register authentication hook
+  registerAuthHook(app);
 
   // Ensure upload directory exists
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -96,10 +83,10 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
    */
   app.post('/', async (request, reply) => {
     try {
-      const user = (request as any).user as { userId: string };
+      const userId = getUserId(request);
 
       // Get uploaded file
-      const data = await (request as any).file();
+      const data = await request.file();
 
       if (!data) {
         return reply.status(400).send({
@@ -108,8 +95,8 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
         });
       }
 
-      // Validate file size
-      const fileSize = data.file.bytesRead || 0;
+      // Validate file size (bytesRead only available during streaming)
+      const fileSize = (data.file as NodeJS.ReadableStream & { bytesRead?: number }).bytesRead || 0;
       if (fileSize > MAX_FILE_SIZE) {
         return reply.status(400).send({
           success: false,
@@ -145,7 +132,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
           filepath: filename, // Store relative path
           mimetype: data.mimetype,
           size: stats.size,
-          uploadedBy: user.userId,
+          uploadedBy: userId,
         },
       });
 
@@ -169,7 +156,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
   app.post('/:documentId', async (request, reply) => {
     try {
       const { documentId } = request.params as { documentId: string };
-      const user = (request as any).user as { userId: string };
+      const userId = getUserId(request);
 
       // Check if document exists
       const document = await prisma.document.findUnique({
@@ -184,7 +171,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
       }
 
       // Get uploaded file
-      const data = await (request as any).file();
+      const data = await request.file();
 
       if (!data) {
         return reply.status(400).send({
@@ -193,8 +180,8 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
         });
       }
 
-      // Validate file size
-      const fileSize = data.file.bytesRead || 0;
+      // Validate file size (bytesRead only available during streaming)
+      const fileSize = (data.file as NodeJS.ReadableStream & { bytesRead?: number }).bytesRead || 0;
       if (fileSize > MAX_FILE_SIZE) {
         return reply.status(400).send({
           success: false,
@@ -230,7 +217,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
           filepath: filename, // Store relative path
           mimetype: data.mimetype,
           size: stats.size,
-          uploadedBy: user.userId,
+          uploadedBy: userId,
         },
       });
 
@@ -325,7 +312,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
   app.delete('/:attachmentId', async (request, reply) => {
     try {
       const { attachmentId } = request.params as { attachmentId: string };
-      const user = (request as any).user as { userId: string };
+      const userId = getUserId(request);
 
       const attachment = await prisma.documentAttachment.findUnique({
         where: { id: attachmentId },
@@ -340,7 +327,7 @@ export async function attachmentsRoutes(app: FastifyInstance, context: ModuleCon
 
       // Only the uploader or admin can delete
       // TODO: Add proper permission check
-      if (attachment.uploadedBy !== user.userId) {
+      if (attachment.uploadedBy !== userId) {
         return reply.status(403).send({
           success: false,
           error: { message: 'Insufficient permissions to delete this attachment', statusCode: 403 },

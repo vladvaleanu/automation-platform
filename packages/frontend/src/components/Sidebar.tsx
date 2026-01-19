@@ -25,6 +25,8 @@ import {
   Briefcase,
   PenTool,
   Box,
+  Bell,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -37,11 +39,14 @@ interface MenuItem {
   children?: MenuItem[];
   badge?: string;
   isModule?: boolean;
+  exact?: boolean;
 }
 
 // Icon mapper for dynamic categories
 const CATEGORY_ICONS: Record<string, any> = {
   monitoring: Activity,
+  power: Activity,  // Power monitoring (consumption module)
+  forge: Sparkles,  // Forge AI Copilot
   operations: Briefcase,
   tools: PenTool,
   settings: Settings,
@@ -55,10 +60,15 @@ const CORE_MENU: MenuItem[] = [
     icon: LayoutDashboard,
   },
   {
+    label: 'Incidents',
+    path: '/incidents',
+    icon: Bell,
+  },
+  {
     label: 'Automation',
     icon: Settings,
     children: [
-      { label: 'Modules', path: '/modules', icon: Package },
+      { label: 'Modules', path: '/modules', icon: Package, exact: true },
       { label: 'Jobs', path: '/jobs', icon: Clock },
       { label: 'Executions', path: '/executions', icon: Play },
       { label: 'Events', path: '/events', icon: Radio },
@@ -85,7 +95,7 @@ function Sidebar() {
   const { theme, toggleTheme } = useTheme();
 
   // State for expanded menus
-  const [expandedMenus, setExpandedMenus] = useState<string[]>(['Automation', 'Monitoring', 'Operations']);
+  const [expandedMenus, setExpandedMenus] = useState<string[]>(['Automation', 'Monitoring', 'Operations', 'Forge']);
 
   // Fetch navigation structure
   const { data: navStructure } = useQuery({
@@ -151,8 +161,9 @@ function Sidebar() {
     );
   };
 
-  const isActive = (path?: string) => {
+  const isActive = (path?: string, exact?: boolean) => {
     if (!path) return false;
+    if (exact) return location.pathname === path;
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
@@ -188,8 +199,8 @@ function Sidebar() {
                   <button
                     onClick={() => toggleMenu(item.label)}
                     className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${item.isModule
-                        ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                       }`}
                   >
                     <span className="flex items-center gap-3">
@@ -211,9 +222,9 @@ function Sidebar() {
                         <li key={child.path || child.label}>
                           <Link
                             to={child.path || '#'}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive(child.path)
-                                ? 'bg-blue-600 text-white font-medium'
-                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${isActive(child.path, child.exact)
+                              ? 'bg-blue-600 text-white font-medium'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
                               }`}
                           >
                             <child.icon size={16} />
@@ -233,9 +244,9 @@ function Sidebar() {
                 // Single menu item without children
                 <Link
                   to={item.path!}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive(item.path)
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${isActive(item.path, item.exact)
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
                     }`}
                 >
                   <item.icon size={18} />

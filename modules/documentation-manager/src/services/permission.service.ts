@@ -59,7 +59,24 @@ export class PermissionService {
     documentId: string,
     requiredLevel: PermissionLevel
   ): Promise<boolean> {
-    // First check document-level permissions
+    // First check if user is a global admin (has admin role)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: true
+          }
+        }
+      }
+    });
+
+    const isGlobalAdmin = user?.roles.some(ur => ur.role.name === 'admin');
+    if (isGlobalAdmin) {
+      return true; // Global admins have all permissions
+    }
+
+    // Check document-level permissions
     const docPermission = await this.prisma.$queryRaw<Array<{ permission: string }>>`
       SELECT permission FROM document_permissions
       WHERE document_id = ${documentId}::uuid

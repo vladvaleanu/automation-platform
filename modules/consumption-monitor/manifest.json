@@ -46,23 +46,23 @@
       ]
     },
     "navigation": {
-      "category": "monitoring",
+      "category": "power",
       "items": [
         {
           "label": "Live Dashboard",
-          "path": "/consumption/live"
+          "path": "/modules/consumption/live"
         },
         {
           "label": "Endpoints",
-          "path": "/consumption/endpoints"
+          "path": "/modules/consumption/endpoints"
         },
         {
           "label": "Reports",
-          "path": "/consumption/reports"
+          "path": "/modules/consumption/reports"
         },
         {
           "label": "History",
-          "path": "/consumption/history"
+          "path": "/modules/consumption/history"
         }
       ]
     }
@@ -76,37 +76,37 @@
       "children": [
         {
           "label": "Live Dashboard",
-          "path": "/consumption/live"
+          "path": "/modules/consumption/live"
         },
         {
           "label": "Endpoints",
-          "path": "/consumption/endpoints"
+          "path": "/modules/consumption/endpoints"
         },
         {
           "label": "Reports",
-          "path": "/consumption/reports"
+          "path": "/modules/consumption/reports"
         },
         {
           "label": "History",
-          "path": "/consumption/history"
+          "path": "/modules/consumption/history"
         }
       ]
     },
     "routes": [
       {
-        "path": "/consumption/live",
+        "path": "/modules/consumption/live",
         "component": "./ui/pages/LiveDashboard.tsx"
       },
       {
-        "path": "/consumption/endpoints",
+        "path": "/modules/consumption/endpoints",
         "component": "./ui/pages/Endpoints.tsx"
       },
       {
-        "path": "/consumption/reports",
+        "path": "/modules/consumption/reports",
         "component": "./ui/pages/Reports.tsx"
       },
       {
-        "path": "/consumption/history",
+        "path": "/modules/consumption/history",
         "component": "./ui/pages/History.tsx"
       }
     ]

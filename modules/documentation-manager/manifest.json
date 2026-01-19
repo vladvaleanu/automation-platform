@@ -8,7 +8,14 @@
   "entry": "./src/index.ts",
   "migrations": "migrations",
   "routes": [],
-  "jobs": {},
+  "jobs": {
+    "cleanup-trash": {
+      "name": "cleanup-trash",
+      "schedule": "0 0 * * *",
+      "handler": "cleanupTrash",
+      "description": "Permanently remove documents deleted more than 30 days ago"
+    }
+  },
   "contributions": {
     "navigation": {
       "category": "tools",

@@ -3,16 +3,19 @@
  * Markdown editor with preview
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   XMarkIcon,
   EyeIcon,
   CodeBracketIcon,
   DocumentCheckIcon,
+  SparklesIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 import { documentsApi, categoriesApi, foldersApi, type Document, type CreateDocumentData, type UpdateDocumentData } from '../api/docs.api';
 import { RichTextEditor } from './RichTextEditor';
+import { DocumentHistory } from './DocumentHistory';
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -33,7 +36,19 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
   const [tagInput, setTagInput] = useState('');
   const [changeNote, setChangeNote] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const [editorMode, setEditorMode] = useState<'markdown' | 'wysiwyg'>('markdown');
+  const [editorMode, setEditorMode] = useState<'markdown' | 'wysiwyg'>('wysiwyg');
+  const [aiAccessible, setAiAccessible] = useState(false);
+  const [hasEmbedding, setHasEmbedding] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [isDirty, setIsDirty] = useState(!isEditMode); // New docs start dirty, edits start clean
+  const isInitialLoad = useRef(isEditMode); // Track if we're still loading in edit mode
+
+  // Safe setter that respects initial load
+  const markDirty = () => {
+    if (!isInitialLoad.current) {
+      setIsDirty(true);
+    }
+  };
 
   // Fetch document if editing
   const { data: documentResponse } = useQuery({
@@ -45,21 +60,41 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
   const document = documentResponse?.data;
 
   // Fetch categories
-  const { data: categoriesResponse } = useQuery({
+  const { data: categories = [] } = useQuery({
     queryKey: ['docs-categories'],
-    queryFn: () => categoriesApi.list(),
+    queryFn: async () => {
+      const response = await categoriesApi.list();
+      return response.data || [];
+    }
   });
 
-  const categories = categoriesResponse?.data || [];
-
   // Fetch folders for selected category
-  const { data: foldersResponse } = useQuery({
+  const { data: folders = [] } = useQuery({
     queryKey: ['docs-folders', categoryId],
-    queryFn: () => foldersApi.list(categoryId),
+    queryFn: async () => {
+      const response = await foldersApi.list(categoryId);
+      return response.data || [];
+    },
     enabled: !!categoryId,
   });
 
-  const folders = foldersResponse?.data || [];
+  // Fetch AI access status if editing
+  const { data: aiAccessResponse } = useQuery({
+    queryKey: ['docs-ai-access', documentId],
+    queryFn: () => documentsApi.getAiAccess(documentId!),
+    enabled: isEditMode,
+    refetchInterval: aiAccessible && !hasEmbedding ? 2000 : false,
+  });
+
+  // AI access toggle mutation
+  const aiAccessMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      documentsApi.setAiAccess(id, enabled),
+    onSuccess: (response) => {
+      setAiAccessible(response.data.aiAccessible);
+      queryClient.invalidateQueries({ queryKey: ['docs-ai-access', documentId] });
+    },
+  });
 
   // Populate form when editing
   useEffect(() => {
@@ -70,18 +105,43 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
       setFolderId(document.folder_id || '');
       setStatus(document.status);
       setTags(document.tags?.map(t => t.name) || []);
-    } else if (categories.length > 0 && !categoryId) {
+      // Reset dirty state after loading document data
+      setIsDirty(false);
+      // Clear initial load flag after a short delay to allow editors to initialize
+      setTimeout(() => {
+        isInitialLoad.current = false;
+      }, 500);
+    }
+  }, [document]);
+
+  // Initialize category for new documents only
+  useEffect(() => {
+    if (!isEditMode && categories.length > 0 && !categoryId) {
       setCategoryId(categories[0].id);
     }
-  }, [document, categories, categoryId]);
+  }, [isEditMode, categories, categoryId]);
+
+  // Populate AI access state
+  useEffect(() => {
+    if (aiAccessResponse?.data) {
+      setAiAccessible(aiAccessResponse.data.aiAccessible);
+      setHasEmbedding(aiAccessResponse.data.hasEmbedding);
+    }
+  }, [aiAccessResponse]);
+
+  const handleAiAccessToggle = () => {
+    if (!documentId) return;
+    aiAccessMutation.mutate({ id: documentId, enabled: !aiAccessible });
+  };
 
   // Create mutation
   const createMutation = useMutation({
     mutationFn: (data: CreateDocumentData) => documentsApi.create(data),
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
+      // Keep popup open after create
+      setIsDirty(false);
       onSave?.(response.data);
-      onClose();
     },
   });
 
@@ -91,8 +151,11 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['docs-documents'] });
       queryClient.invalidateQueries({ queryKey: ['docs-document', documentId] });
+      queryClient.invalidateQueries({ queryKey: ['docs-versions', documentId] });
+      // Don't close - keep popup open
+      setIsDirty(false);
+      setChangeNote(''); // Clear change note after save
       onSave?.(response.data);
-      onClose();
     },
   });
 
@@ -185,11 +248,10 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                   setEditorMode('markdown');
                   setShowPreview(false);
                 }}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  editorMode === 'markdown'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'markdown'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400'
+                  }`}
               >
                 Markdown
               </button>
@@ -198,11 +260,10 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                   setEditorMode('wysiwyg');
                   setShowPreview(false);
                 }}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                  editorMode === 'wysiwyg'
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400'
-                }`}
+                className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'wysiwyg'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400'
+                  }`}
               >
                 WYSIWYG
               </button>
@@ -227,13 +288,25 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                 )}
               </button>
             )}
+
+            {/* History Button (Edit Mode Only) */}
+            {isEditMode && (
+              <button
+                onClick={() => setShowHistory(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                title="Version History"
+              >
+                <ClockIcon className="h-5 w-5" />
+              </button>
+            )}
+
             <button
               onClick={handleSave}
-              disabled={!title.trim() || !content.trim() || !categoryId || createMutation.isPending || updateMutation.isPending}
+              disabled={!title.trim() || !content.trim() || !categoryId || createMutation.isPending || updateMutation.isPending || (isEditMode && !isDirty)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
             >
               <DocumentCheckIcon className="h-4 w-4" />
-              {isEditMode ? 'Update' : 'Create'}
+              {isEditMode ? (isDirty ? 'Update' : 'Saved') : 'Create'}
             </button>
             <button
               onClick={onClose}
@@ -255,7 +328,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
               <input
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => { setTitle(e.target.value); markDirty(); }}
                 placeholder="Document title"
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -272,6 +345,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                   onChange={(e) => {
                     setCategoryId(e.target.value);
                     setFolderId('');
+                    markDirty();
                   }}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -289,7 +363,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                 </label>
                 <select
                   value={folderId}
-                  onChange={(e) => setFolderId(e.target.value)}
+                  onChange={(e) => { setFolderId(e.target.value); markDirty(); }}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   disabled={!categoryId || folders.length === 0}
                 >
@@ -315,7 +389,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                       type="radio"
                       value={s}
                       checked={status === s}
-                      onChange={(e) => setStatus(e.target.value as typeof status)}
+                      onChange={(e) => { setStatus(e.target.value as typeof status); markDirty(); }}
                       className="text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">{s}</span>
@@ -323,6 +397,47 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
                 ))}
               </div>
             </div>
+
+            {/* Forge AI Access (edit mode only) */}
+            {isEditMode && (
+              <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <SparklesIcon className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Forge AI Access
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Allow Forge to read this document for context-aware responses
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {aiAccessible && (
+                      <span className={`text-xs px-2 py-1 rounded-full ${hasEmbedding
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        }`}>
+                        {hasEmbedding ? 'Indexed' : 'Indexing...'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleAiAccessToggle}
+                      disabled={aiAccessMutation.isPending}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${aiAccessible ? 'bg-purple-600' : 'bg-gray-200 dark:bg-gray-700'
+                        } ${aiAccessMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${aiAccessible ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Tags */}
             <div>
@@ -387,7 +502,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
               {editorMode === 'wysiwyg' ? (
                 <RichTextEditor
                   content={content}
-                  onChange={setContent}
+                  onChange={(val) => { setContent(val); markDirty(); }}
                   placeholder="Start writing your document..."
                   documentId={documentId}
                 />
@@ -399,7 +514,7 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
               ) : (
                 <textarea
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={(e) => { setContent(e.target.value); markDirty(); }}
                   placeholder="Write your document in Markdown..."
                   rows={20}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
@@ -409,6 +524,18 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
           </div>
         </div>
       </div>
+
+      {showHistory && documentId && (
+        <DocumentHistory
+          documentId={documentId}
+          onClose={() => setShowHistory(false)}
+          onRestore={() => {
+            // Document will automatically refresh via query invalidation
+            // But we should also close the history modal
+            setShowHistory(false);
+          }}
+        />
+      )}
     </div>
   );
 }

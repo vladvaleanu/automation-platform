@@ -4,7 +4,10 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-// import { prisma } from '../lib/prisma';
+import { ModuleContext, CategoryWithCount } from '../types';
+import { registerAuthHook } from '../middleware/auth.middleware';
+import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/response.utils';
+import '../types/fastify.d';
 
 const createCategorySchema = z.object({
   name: z.string().min(1).max(255),
@@ -20,26 +23,11 @@ const updateCategorySchema = z.object({
   order: z.number().optional(),
 });
 
-// ... imports
-import { ModuleContext } from '../types';
-
-// ... schemas
-
 export async function categoriesRoutes(app: FastifyInstance, context: ModuleContext) {
   const prisma = context.services.prisma;
 
-  // Add authentication hook for all routes in this plugin
-  // ... (rest of the file using local prisma variable)
-  app.addHook('onRequest', async (request, reply) => {
-    try {
-      await (request as any).jwtVerify();
-    } catch (err) {
-      reply.status(401).send({
-        success: false,
-        error: { message: 'Unauthorized - Invalid or missing token', statusCode: 401 },
-      });
-    }
-  });
+  // Register authentication hook
+  registerAuthHook(app);
 
   /**
    * GET /api/v1/docs/categories
@@ -47,10 +35,10 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
    */
   app.get('/', async (request, reply) => {
     try {
-      const categories = await prisma.$queryRaw<Array<any>>`
+      const categories = await prisma.$queryRaw<CategoryWithCount[]>`
         SELECT
           c.*,
-          COUNT(DISTINCT d.id)::int as document_count
+          COUNT(DISTINCT d.id) FILTER (WHERE d.deleted_at IS NULL)::int as document_count
         FROM document_categories c
         LEFT JOIN documents d ON c.id = d.category_id
         GROUP BY c.id
@@ -78,10 +66,10 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
     try {
       const { id } = request.params as { id: string };
 
-      const categories = await prisma.$queryRaw<Array<any>>`
+      const categories = await prisma.$queryRaw<CategoryWithCount[]>`
         SELECT
           c.*,
-          COUNT(DISTINCT d.id)::int as document_count,
+          COUNT(DISTINCT d.id) FILTER (WHERE d.deleted_at IS NULL)::int as document_count,
           COUNT(DISTINCT f.id)::int as folder_count
         FROM document_categories c
         LEFT JOIN documents d ON c.id = d.category_id
@@ -126,7 +114,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
 
       const categoryId = result[0].id;
 
-      const categories = await prisma.$queryRaw<Array<any>>`
+      const categories = await prisma.$queryRaw<CategoryWithCount[]>`
         SELECT * FROM document_categories WHERE id = ${categoryId}::uuid
       `;
 
@@ -181,7 +169,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
       }
 
       if (updates.length === 0) {
-        const categories = await prisma.$queryRaw<Array<any>>`
+        const categories = await prisma.$queryRaw<CategoryWithCount[]>`
           SELECT * FROM document_categories WHERE id = ${id}::uuid
         `;
         return reply.send({
@@ -198,7 +186,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
         WHERE id = $${paramIndex}::uuid
       `, ...values, id);
 
-      const categories = await prisma.$queryRaw<Array<any>>`
+      const categories = await prisma.$queryRaw<CategoryWithCount[]>`
         SELECT * FROM document_categories WHERE id = ${id}::uuid
       `;
 

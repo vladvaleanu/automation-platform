@@ -130,7 +130,7 @@ export function DocumentViewer({ documentId, onEdit }: DocumentViewerProps) {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-6">
           <div
-            className="prose prose-gray dark:prose-invert max-w-none"
+            className="prose prose-gray dark:prose-invert max-w-none text-gray-900 dark:text-gray-100 dark:[&_*]:text-gray-100"
             dangerouslySetInnerHTML={{ __html: document.content_html }}
           />
         </div>

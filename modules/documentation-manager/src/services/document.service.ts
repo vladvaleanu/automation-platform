@@ -7,6 +7,7 @@
 import { PrismaClient } from '@prisma/client';
 import { VersionService } from './version.service';
 import { markdownService } from './markdown.service';
+import { DocumentWithRelations, DocumentListRow, DocumentStatus } from '../types/document.types';
 
 interface CreateDocumentData {
   title: string;
@@ -77,9 +78,24 @@ export class DocumentService {
    * Get document by ID
    */
   async getDocument(documentId: string) {
-    const documents = await this.prisma.$queryRaw<Array<any>>`
+    // Explicitly list columns to avoid selecting the embedding vector column
+    // which Prisma cannot serialize
+    const documents = await this.prisma.$queryRaw<DocumentWithRelations[]>`
       SELECT
-        d.*,
+        d.id,
+        d.title,
+        d.slug,
+        d.content,
+        d.content_html,
+        d.excerpt,
+        d.category_id,
+        d.folder_id,
+        d.author_id,
+        d.status,
+        d.ai_accessible,
+        d.created_at,
+        d.updated_at,
+        d.published_at,
         json_build_object(
           'id', c.id,
           'name', c.name,
@@ -201,7 +217,33 @@ export class DocumentService {
   /**
    * Delete document
    */
+  /**
+   * Soft delete document (move to trash)
+   */
   async deleteDocument(documentId: string) {
+    await this.prisma.$executeRaw`
+      UPDATE documents 
+      SET deleted_at = NOW() 
+      WHERE id = ${documentId}::uuid
+    `;
+  }
+
+  /**
+   * Restore document from trash
+   */
+  async restoreDocument(documentId: string) {
+    await this.prisma.$executeRaw`
+      UPDATE documents 
+      SET deleted_at = NULL 
+      WHERE id = ${documentId}::uuid
+    `;
+    return this.getDocument(documentId);
+  }
+
+  /**
+   * Permanently delete document
+   */
+  async permanentDeleteDocument(documentId: string) {
     await this.prisma.$executeRaw`
       DELETE FROM documents WHERE id = ${documentId}::uuid
     `;
@@ -217,12 +259,20 @@ export class DocumentService {
     search?: string;
     tags?: string[];
     authorId?: string;
+    trashed?: boolean;
     limit?: number;
     offset?: number;
   }) {
     let whereConditions: string[] = [];
     let queryParams: any[] = [];
     let paramIndex = 1;
+
+    // Filter by deleted status
+    if (filters.trashed) {
+      whereConditions.push(`d.deleted_at IS NOT NULL`);
+    } else {
+      whereConditions.push(`d.deleted_at IS NULL`);
+    }
 
     if (filters.categoryId) {
       whereConditions.push(`d.category_id = $${paramIndex}::uuid`);

@@ -6,12 +6,43 @@ import DynamicWidget from '../components/dashboard/DynamicWidget';
 // Similar to widget registry, but for full pages
 const MODULE_PAGE_REGISTRY: Record<string, React.LazyExoticComponent<any>> = {
     'documentation-manager': React.lazy(() => import('../modules/documentation-manager/pages/DocumentationPage')),
+    'ai-copilot': React.lazy(() => import('../modules/ai-copilot/pages/ForgePage')),
+};
+
+// Registry for module sub-pages (e.g., /modules/ai-copilot/settings)
+const MODULE_SUBPAGE_REGISTRY: Record<string, Record<string, React.LazyExoticComponent<any>>> = {
+    'ai-copilot': {
+        'settings': React.lazy(() => import('../modules/ai-copilot/pages/SettingsPage')),
+        'chat': React.lazy(() => import('../modules/ai-copilot/pages/ChatPage')),
+        'knowledge': React.lazy(() => import('../modules/ai-copilot/pages/KnowledgePage')),
+    },
+    'consumption': {
+        'live': React.lazy(() => import('../pages/LiveDashboardPage')),
+        'endpoints': React.lazy(() => import('../pages/EndpointsPage')),
+        'reports': React.lazy(() => import('../pages/ReportsPage')),
+        'history': React.lazy(() => import('../pages/HistoryPage')),
+    },
 };
 
 export default function ModulePage() {
-    const { moduleName } = useParams<{ moduleName: string }>();
+    const { moduleName, '*': subPath } = useParams<{ moduleName: string; '*': string }>();
 
-    // Check if we have a registered page for this module
+    // Extract sub-route (e.g., "settings" from /modules/ai-copilot/settings)
+    const subRoute = subPath?.split('/')[0] || '';
+
+    // Check if we have a registered sub-page for this module + subRoute
+    const subPages = moduleName ? MODULE_SUBPAGE_REGISTRY[moduleName] : null;
+    const SubPageComponent = subPages && subRoute ? subPages[subRoute] : null;
+
+    if (SubPageComponent) {
+        return (
+            <Suspense fallback={<div className="p-8">Loading...</div>}>
+                <SubPageComponent />
+            </Suspense>
+        );
+    }
+
+    // Check if we have a registered main page for this module
     const ModuleComponent = moduleName ? MODULE_PAGE_REGISTRY[moduleName] : null;
 
     if (ModuleComponent) {
@@ -63,3 +94,4 @@ export default function ModulePage() {
         </div>
     );
 }
+

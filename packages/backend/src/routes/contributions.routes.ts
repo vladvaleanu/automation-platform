@@ -46,6 +46,8 @@ export const contributionsRoutes: FastifyPluginAsync = async (fastify) => {
         // Default categories
         const structure: Record<string, any[]> = {
             monitoring: [],
+            power: [],      // Power monitoring (consumption)
+            forge: [],      // Forge AI Copilot
             operations: [],
             tools: [],
             settings: []

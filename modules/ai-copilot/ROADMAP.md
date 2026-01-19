@@ -123,47 +123,108 @@ Other modules (Power, Cooling) register "Read Tools" that Forge can call.
 
 ## 3. Phased Implementation Roadmap
 
-### Phase 1: Visual Core (Week 1)
-1.  **Scaffold**: Create `packages/frontend/src/modules/ai-copilot`.
-2.  **Pages**:
-    -   `MainPage.tsx` (Layout container).
-    -   `SettingsPage.tsx` (Form with React Hook Form).
-3.  **Components**:
-    -   `SituationDeck.tsx`: Mock mapped list of incidents.
-    -   `ChatWidget.tsx`: Mock chat stream styling.
+### ✅ Phase 1: Visual Core (COMPLETED)
 
-> **✅ Done When:**
-> - Split-pane layout renders at `/modules/ai-copilot`
-> - Settings form saves to localStorage (mock persistence)
-> - Incident cards display mock data with severity badges
+**Completed: 2026-01-18**
+
+#### Frontend Components Created:
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `ChatPage.tsx` | `/modules/ai-copilot/pages/` | Full-screen chat view with quick actions |
+| `SettingsPage.tsx` | `/modules/ai-copilot/pages/` | Configuration form (localStorage) |
+| `ForgeGlobalChat.tsx` | `/components/forge/` | Persistent floating chat widget |
+| `ChatWidget.tsx` | `/modules/ai-copilot/components/` | Chat interface component |
+
+#### Core Platform Features (Moved from Module):
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `IncidentsPage.tsx` | `/pages/monitoring/` | Core Incidents dashboard (Situation Deck) |
+| `IncidentCard.tsx` | `/components/monitoring/` | Incident card with severity badges |
+| `monitoring.types.ts` | `/types/` | Core incident/alert type definitions |
+
+#### Architectural Decisions:
+1. **Situation Deck → Core Platform**: Incident monitoring is now a core feature at `/incidents`, not part of the Forge module. This follows separation of concerns (monitoring ≠ AI).
+2. **Forge = AI Layer Only**: The ai-copilot module now contains only chat and settings.
+3. **Global Chat Widget**: Persistent pop-out available on all pages except Forge pages.
+4. **Page Context Awareness**: Chat widget knows which page user is viewing.
+
+#### Routes:
+| Path | Component |
+|------|-----------|
+| `/incidents` | Core Incidents page (Situation Deck) |
+| `/modules/ai-copilot` | Redirects to /chat |
+| `/modules/ai-copilot/chat` | Full Forge chat page |
+| `/modules/ai-copilot/settings` | Settings configuration |
+
+#### Sidebar Structure:
+```
+Dashboard
+Incidents          ← Direct top-level link (Core)
+Automation
+├── Modules, Jobs, Executions, Events
+Power              ← Consumption monitoring  
+├── Live Dashboard, Endpoints, Reports, History
+Tools
+├── Forge, Knowledge Base
+Settings
+```
+
+> **✅ Done:**
+> - Split between Core (Incidents) and Module (Forge Chat) ✓
+> - Settings form saves to localStorage (mock persistence) ✓
+> - Incident cards display mock data with severity badges ✓
+> - Global floating chat widget with page awareness ✓
+> - Chat persists across page navigations (localStorage) ✓
 
 ---
 
-### Phase 2: Backend Plumbing (Week 1-2)
-1.  **Module**: `modules/ai-copilot` setup per `AI_DEVELOPMENT_GUIDE.md`.
-2.  **DB**: Run Prisma migrations for the schema above + enable pgvector.
-3.  **AI Service**: Implement `src/services/OllamaService.ts` *inside the module*.
-    -   Ollama health check (`/api/tags` endpoint).
-    -   Retry logic with exponential backoff (3 attempts).
-    -   Graceful fallback: Queue messages when offline, process on reconnect.
+### ✅ Phase 2: Backend Plumbing (COMPLETED)
 
-> **✅ Done When:**
-> - `GET /api/v1/m/ai-copilot/health` returns `{ status: 'ok', ollama: true/false }`
-> - Settings save to `AiConfig` table and persist across restarts
-> - Chat input sends message to Ollama and receives streamed response
+**Completed: 2026-01-18**
+
+#### Backend Components Created:
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `types/index.ts` | `modules/ai-copilot/src/` | ModuleContext, AiConfig, ChatMessage types |
+| `ollama.service.ts` | `modules/ai-copilot/src/services/` | Ollama API wrapper with retry logic |
+| `routes/index.ts` | `modules/ai-copilot/src/` | API endpoints (/health, /models, /settings, /chat) |
+| `001_create_ai_config.sql` | `modules/ai-copilot/src/migrations/` | Database schema for ai_config table |
+
+#### Frontend Updates:
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `api.ts` | `packages/frontend/src/modules/ai-copilot/` | API client with streaming support |
+| `useForgeSettings.ts` | `packages/frontend/src/modules/ai-copilot/hooks/` | Backend + localStorage sync |
+| `ChatWidget.tsx` | `packages/frontend/src/modules/ai-copilot/components/` | Connected to real Ollama |
+
+#### Verified Endpoints:
+- `GET /health` → Returns Ollama connection status
+- `GET /models` → Lists available Ollama models
+- `GET/PUT /settings` → Persists config to PostgreSQL
+- `POST /chat` → Real AI responses from llama3.1
+
+> **✅ Done:**
+> - Settings save to `AiConfig` table and persist across restarts ✓
+> - Chat input sends message to Ollama and receives response ✓
+> - API integration verified in browser ✓
 
 ---
 
 ### Phase 3: The Brain (Week 2-3)
-1.  **Batching Logic**: Implement `AlertBatcherService`.
+1.  **Batching Logic** (PENDING): Implement `AlertBatcherService`.
     -   Logic: "If >5 alerts share label 'Rack-1' within 30s -> Create Incident".
-2.  **RAG**: Implement `KnowledgeService`.
-    -   Function: "Find similar `KnowledgeItems` where status=APPROVED".
+2.  **RAG Knowledge Base** (COMPLETED ✅): Implement `KnowledgeService` & Docs Integration.
+    -   Function: "Find similar documents where ai_accessible=TRUE".
+    -   Admin UI: `/modules/ai-copilot/knowledge` to manage access.
 
-> **✅ Done When:**
-> - Triggering 5+ mock alerts within 30s creates a single Incident card
-> - Admin can approve a `KnowledgeItem` and it appears in RAG context
-> - Chat responses cite relevant SOPs when applicable
+> **✅ RAG Done:**
+> - Embedding & Knowledge services implemented ✓
+> - Docs module integrated with `ai_accessible` flag ✓
+> - Admin Knowledge Page created ✓
+> - Chat uses RAG context for answers ✓
+
+> **🚧 Remaining:**
+> - Alert Batching logic (`AlertBatcherService`)
 
 ---
 

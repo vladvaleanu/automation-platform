@@ -4,7 +4,11 @@
 
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-// import { prisma } from '../lib/prisma';
+import { ModuleContext, FolderWithCount, FolderWithChildren } from '../types';
+import { DocumentListRow } from '../types/document.types';
+import { registerAuthHook, getUserId } from '../middleware/auth.middleware';
+import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/response.utils';
+import '../types/fastify.d';
 
 const createFolderSchema = z.object({
   name: z.string().min(1).max(255),
@@ -23,26 +27,11 @@ const updateFolderSchema = z.object({
   order: z.number().optional(),
 });
 
-// ... imports
-import { ModuleContext } from '../types';
-
-// ... schemas
-
 export async function foldersRoutes(app: FastifyInstance, context: ModuleContext) {
   const prisma = context.services.prisma;
 
-  // Add authentication hook for all routes in this plugin
-  // ... (rest of the file using local prisma variable)
-  app.addHook('onRequest', async (request, reply) => {
-    try {
-      await (request as any).jwtVerify();
-    } catch (err) {
-      reply.status(401).send({
-        success: false,
-        error: { message: 'Unauthorized - Invalid or missing token', statusCode: 401 },
-      });
-    }
-  });
+  // Register authentication hook
+  registerAuthHook(app);
 
   /**
    * GET /api/v1/docs/folders
@@ -60,7 +49,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       }
 
       // Get all folders for the category
-      const folders = await prisma.$queryRaw<Array<any>>`
+      const folders = await prisma.$queryRaw<FolderWithCount[]>`
         SELECT
           f.*,
           COUNT(DISTINCT d.id)::int as document_count,
@@ -106,7 +95,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
     try {
       const { id } = request.params as { id: string };
 
-      const folders = await prisma.$queryRaw<Array<any>>`
+      const folders = await prisma.$queryRaw<FolderWithChildren[]>`
         SELECT
           f.*,
           json_build_object(
@@ -129,7 +118,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       const folder = folders[0];
 
       // Get subfolders
-      const subfolders = await prisma.$queryRaw<Array<any>>`
+      const subfolders = await prisma.$queryRaw<FolderWithCount[]>`
         SELECT
           f.*,
           COUNT(DISTINCT d.id)::int as document_count
@@ -141,7 +130,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       `;
 
       // Get documents in this folder
-      const documents = await prisma.$queryRaw<Array<any>>`
+      const documents = await prisma.$queryRaw<DocumentListRow[]>`
         SELECT
           d.id, d.title, d.slug, d.excerpt, d.status,
           d.created_at, d.updated_at, d.published_at,
@@ -179,7 +168,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
   app.post('/', async (request, reply) => {
     try {
       const data = createFolderSchema.parse(request.body);
-      const userId = (request as any).user.userId;
+      const userId = getUserId(request);
 
       // Verify parent folder belongs to same category if specified
       if (data.parentId) {
@@ -203,22 +192,19 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       }
 
       const result = await prisma.$queryRaw<Array<{ id: string }>>`
-        INSERT INTO document_folders (name, description, category_id, parent_id, icon, \"order\", created_by)
+        INSERT INTO document_folders (name, category_id, parent_id, "order")
         VALUES (
           ${data.name},
-          ${data.description || null},
           ${data.categoryId}::uuid,
           ${data.parentId || null}::uuid,
-          ${data.icon || null},
-          ${data.order || 0},
-          ${userId}::uuid
+          ${data.order || 0}
         )
         RETURNING id
       `;
 
       const folderId = result[0].id;
 
-      const folders = await prisma.$queryRaw<Array<any>>`
+      const folders = await prisma.$queryRaw<FolderWithChildren[]>`
         SELECT * FROM document_folders WHERE id = ${folderId}::uuid
       `;
 
@@ -294,21 +280,9 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
         paramIndex++;
       }
 
-      if (data.description !== undefined) {
-        updates.push(`description = $${paramIndex}`);
-        values.push(data.description);
-        paramIndex++;
-      }
-
       if (data.parentId !== undefined) {
         updates.push(`parent_id = $${paramIndex}::uuid`);
         values.push(data.parentId);
-        paramIndex++;
-      }
-
-      if (data.icon !== undefined) {
-        updates.push(`icon = $${paramIndex}`);
-        values.push(data.icon);
         paramIndex++;
       }
 
@@ -319,7 +293,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       }
 
       if (updates.length === 0) {
-        const folders = await prisma.$queryRaw<Array<any>>`
+        const folders = await prisma.$queryRaw<FolderWithChildren[]>`
           SELECT * FROM document_folders WHERE id = ${id}::uuid
         `;
         return reply.send({
@@ -336,7 +310,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
         WHERE id = $${paramIndex}::uuid
       `, ...values, id);
 
-      const folders = await prisma.$queryRaw<Array<any>>`
+      const folders = await prisma.$queryRaw<FolderWithChildren[]>`
         SELECT * FROM document_folders WHERE id = ${id}::uuid
       `;
 

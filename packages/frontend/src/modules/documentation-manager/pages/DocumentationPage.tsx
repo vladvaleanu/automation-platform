@@ -5,10 +5,11 @@
 
 import { useState } from 'react';
 import { PlusIcon, PhotoIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
-import { DocumentBrowser } from '../components/DocumentBrowser';
+import DocumentBrowser from '../components/DocumentBrowser';
 import { DocumentViewer } from '../components/DocumentViewer';
 import { DocumentEditor } from '../components/DocumentEditor';
 import { MediaGallery } from '../components/MediaGallery';
+import { ErrorBoundary } from '../../../components/ErrorBoundary';
 import type { Document, DocumentListItem } from '../api/docs.api';
 
 type ViewMode = 'documents' | 'media';
@@ -40,8 +41,8 @@ export function DocumentationPage() {
 
   const handleSaveDocument = (document: Document) => {
     setSelectedDocument(document);
-    setShowEditor(false);
-    setEditingDocument(null);
+    // Don't close editor - it stays open after save
+    // User closes with X button only
   };
 
   return (
@@ -49,10 +50,19 @@ export function DocumentationPage() {
       {/* Sidebar - Document Browser (only show in documents view) */}
       {viewMode === 'documents' && (
         <div className="w-80 flex-shrink-0">
-          <DocumentBrowser
-            onSelectDocument={handleSelectDocument}
-            selectedDocumentId={selectedDocument?.id}
-          />
+          <ErrorBoundary moduleName="Document Browser">
+            <DocumentBrowser
+              onSelectDocument={handleSelectDocument}
+              selectedDocumentId={selectedDocument?.id}
+              onDocumentDeleted={(deletedId) => {
+                if (selectedDocument?.id === deletedId) {
+                  setSelectedDocument(null);
+                  setEditingDocument(null);
+                  setShowEditor(false);
+                }
+              }}
+            />
+          </ErrorBoundary>
         </div>
       )}
 
@@ -62,7 +72,7 @@ export function DocumentationPage() {
         <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Documentation
+              Knowledge Base
             </h1>
             {viewMode === 'documents' && (
               <button
@@ -79,22 +89,20 @@ export function DocumentationPage() {
           <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
               onClick={() => setViewMode('documents')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                viewMode === 'documents'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'documents'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
             >
               <DocumentTextIcon className="h-4 w-4" />
               Documents
             </button>
             <button
               onClick={() => setViewMode('media')}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                viewMode === 'media'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-              }`}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'media'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
             >
               <PhotoIcon className="h-4 w-4" />
               Media
@@ -106,10 +114,12 @@ export function DocumentationPage() {
         <div className="flex-1 overflow-hidden">
           {viewMode === 'documents' ? (
             selectedDocument ? (
-              <DocumentViewer
-                documentId={selectedDocument.id}
-                onEdit={handleEditDocument}
-              />
+              <ErrorBoundary moduleName="Document Viewer">
+                <DocumentViewer
+                  documentId={selectedDocument.id}
+                  onEdit={handleEditDocument}
+                />
+              </ErrorBoundary>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
                 <div className="text-center">
@@ -126,11 +136,13 @@ export function DocumentationPage() {
 
       {/* Document Editor Modal */}
       {showEditor && (
-        <DocumentEditor
-          documentId={editingDocument?.id}
-          onClose={handleCloseEditor}
-          onSave={handleSaveDocument}
-        />
+        <ErrorBoundary moduleName="Document Editor">
+          <DocumentEditor
+            documentId={editingDocument?.id}
+            onClose={handleCloseEditor}
+            onSave={handleSaveDocument}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );

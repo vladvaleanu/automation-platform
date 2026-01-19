@@ -5,6 +5,7 @@
 
 import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
+import ForgeGlobalChat from './forge/ForgeGlobalChat';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,8 +21,12 @@ function Layout({ children }: LayoutProps) {
       <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
         {children}
       </main>
+
+      {/* Forge Global Chat - Floating widget available on all pages */}
+      <ForgeGlobalChat />
     </div>
   );
 }
 
 export default Layout;
+

@@ -427,6 +427,13 @@ model Document {
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
 
+  // AI Integration
+  ai_accessible Boolean                    @default(false) @map("ai_accessible")
+  embedding     Unsupported("vector(768)")?
+
+  // Trash & Retention
+  deletedAt     DateTime?                  @map("deleted_at")
+
   // Relations
   category    DocumentCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   folder      DocumentFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
