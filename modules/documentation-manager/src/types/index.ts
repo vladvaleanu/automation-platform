@@ -3,9 +3,6 @@
  * Central export point for all module types
  */
 
-// Re-export Fastify augmentations (side effect import)
-import './fastify.d';
-
 // Module context
 import { PrismaClient } from '@prisma/client';
 import { FastifyBaseLogger } from 'fastify';

@@ -5,11 +5,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { modulesApi } from '../api/modules';
+import { apiClient } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../utils/error.utils';
 import { showError, showSuccess } from '../utils/toast.utils';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
 interface Module {
   id: string;
@@ -44,6 +44,7 @@ const cronPresets = [
 
 export default function CreateJobPage() {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -59,34 +60,30 @@ export default function CreateJobPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedModuleHandlers, setSelectedModuleHandlers] = useState<any[]>([]);
 
-  // Fetch modules
+  // Fetch modules - only when authenticated to avoid race conditions
   const { data: modulesData, isLoading: modulesLoading } = useQuery({
     queryKey: ['modules'],
-    queryFn: async () => {
-      const response = await axios.get(`${API_URL}/modules`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      return response.data;
-    },
+    queryFn: () => modulesApi.list(),
+    enabled: isAuthenticated && !authLoading,
+    staleTime: 0,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   });
 
-  const modules: Module[] = (modulesData?.data || []).filter((m: Module) => m.status === 'ENABLED');
+  const modules: Module[] = (modulesData || []).filter((m: Module) => m.status === 'ENABLED');
 
-  console.log('[CreateJobPage] modulesData:', modulesData);
-  console.log('[CreateJobPage] filtered modules:', modules);
+  // Show loading state while auth is being verified
+  if (authLoading) {
+    return (
+      <div className="p-8 flex justify-center items-center">
+        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   // Create job mutation
   const createJobMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await axios.post(`${API_URL}/jobs`, data, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-      return response.data;
-    },
+    mutationFn: (data: any) => apiClient.post('/jobs', data),
     onSuccess: () => {
       showSuccess('Job created successfully');
       navigate('/jobs');

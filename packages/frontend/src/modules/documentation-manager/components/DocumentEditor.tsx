@@ -16,6 +16,7 @@ import {
 import { documentsApi, categoriesApi, foldersApi, type Document, type CreateDocumentData, type UpdateDocumentData } from '../api/docs.api';
 import { RichTextEditor } from './RichTextEditor';
 import { DocumentHistory } from './DocumentHistory';
+import { showError } from '../../../utils/toast.utils';
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -143,6 +144,10 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
       setIsDirty(false);
       onSave?.(response.data);
     },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || error?.message || 'Failed to create document';
+      showError(message);
+    },
   });
 
   // Update mutation
@@ -156,6 +161,10 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
       setIsDirty(false);
       setChangeNote(''); // Clear change note after save
       onSave?.(response.data);
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error?.message || error?.message || 'Failed to update document';
+      showError(message);
     },
   });
 

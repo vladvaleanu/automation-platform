@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { ModuleContext, CategoryWithCount } from '../types';
 import { registerAuthHook } from '../middleware/auth.middleware';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/response.utils';
-import '../types/fastify.d';
 
 const createCategorySchema = z.object({
   name: z.string().min(1).max(255),

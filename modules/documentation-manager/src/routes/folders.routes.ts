@@ -8,7 +8,6 @@ import { ModuleContext, FolderWithCount, FolderWithChildren } from '../types';
 import { DocumentListRow } from '../types/document.types';
 import { registerAuthHook, getUserId } from '../middleware/auth.middleware';
 import { sendSuccess, sendCreated, sendError, sendNotFound, sendBadRequest } from '../utils/response.utils';
-import '../types/fastify.d';
 
 const createFolderSchema = z.object({
   name: z.string().min(1).max(255),
@@ -55,7 +54,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
           COUNT(DISTINCT d.id)::int as document_count,
           COUNT(DISTINCT sf.id)::int as subfolder_count
         FROM document_folders f
-        LEFT JOIN documents d ON f.id = d.folder_id
+        LEFT JOIN documents d ON f.id = d.folder_id AND d.deleted_at IS NULL
         LEFT JOIN document_folders sf ON f.id = sf.parent_id
         WHERE f.category_id = ${categoryId}::uuid
         GROUP BY f.id
@@ -123,7 +122,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
           f.*,
           COUNT(DISTINCT d.id)::int as document_count
         FROM document_folders f
-        LEFT JOIN documents d ON f.id = d.folder_id
+        LEFT JOIN documents d ON f.id = d.folder_id AND d.deleted_at IS NULL
         WHERE f.parent_id = ${id}::uuid
         GROUP BY f.id
         ORDER BY f.\"order\" ASC, f.name ASC

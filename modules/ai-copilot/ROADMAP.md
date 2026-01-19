@@ -132,8 +132,10 @@ Other modules (Power, Cooling) register "Read Tools" that Forge can call.
 |-----------|----------|---------|
 | `ChatPage.tsx` | `/modules/ai-copilot/pages/` | Full-screen chat view with quick actions |
 | `SettingsPage.tsx` | `/modules/ai-copilot/pages/` | Configuration form (localStorage) |
-| `ForgeGlobalChat.tsx` | `/components/forge/` | Persistent floating chat widget |
-| `ChatWidget.tsx` | `/modules/ai-copilot/components/` | Chat interface component |
+| `KnowledgePage.tsx` | `/modules/ai-copilot/pages/` | RAG document management admin UI |
+| `ForgeGlobalChat.tsx` | `/components/forge/` | Persistent floating chat widget (auto-hides when module disabled) |
+| `ChatWidget.tsx` | `/modules/ai-copilot/components/` | Chat interface component with streaming |
+| `SituationDeck.tsx` | `/modules/ai-copilot/components/` | Incident display (currently mock data) |
 
 #### Core Platform Features (Moved from Module):
 | Component | Location | Purpose |
@@ -154,6 +156,7 @@ Other modules (Power, Cooling) register "Read Tools" that Forge can call.
 | `/incidents` | Core Incidents page (Situation Deck) |
 | `/modules/ai-copilot` | Redirects to /chat |
 | `/modules/ai-copilot/chat` | Full Forge chat page |
+| `/modules/ai-copilot/knowledge` | RAG document management |
 | `/modules/ai-copilot/settings` | Settings configuration |
 
 #### Sidebar Structure:
@@ -186,8 +189,10 @@ Settings
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `types/index.ts` | `modules/ai-copilot/src/` | ModuleContext, AiConfig, ChatMessage types |
-| `ollama.service.ts` | `modules/ai-copilot/src/services/` | Ollama API wrapper with retry logic |
-| `routes/index.ts` | `modules/ai-copilot/src/` | API endpoints (/health, /models, /settings, /chat) |
+| `ollama.service.ts` | `modules/ai-copilot/src/services/` | Ollama API wrapper with retry logic, streaming |
+| `embedding.service.ts` | `modules/ai-copilot/src/services/` | Vector embeddings via nomic-embed-text (768-dim) |
+| `knowledge.service.ts` | `modules/ai-copilot/src/services/` | RAG retrieval with pgvector similarity search |
+| `routes/index.ts` | `modules/ai-copilot/src/` | API endpoints (/health, /models, /settings, /chat, /knowledge) |
 | `001_create_ai_config.sql` | `modules/ai-copilot/src/migrations/` | Database schema for ai_config table |
 
 #### Frontend Updates:
@@ -198,41 +203,81 @@ Settings
 | `ChatWidget.tsx` | `packages/frontend/src/modules/ai-copilot/components/` | Connected to real Ollama |
 
 #### Verified Endpoints:
-- `GET /health` → Returns Ollama connection status
-- `GET /models` → Lists available Ollama models
+- `GET /health` → Returns Ollama connection status and available models
+- `GET /models` → Lists available Ollama models with details
 - `GET/PUT /settings` → Persists config to PostgreSQL
-- `POST /chat` → Real AI responses from llama3.1
+- `POST /chat` → Real AI responses with RAG context (streaming supported)
+- `GET /knowledge` → List AI-accessible documents
+- `GET /knowledge/stats` → AI document statistics (total, embedded, pending)
+- `POST /knowledge/search` → RAG similarity search
 
 > **✅ Done:**
 > - Settings save to `AiConfig` table and persist across restarts ✓
 > - Chat input sends message to Ollama and receives response ✓
+> - Streaming chat responses working ✓
 > - API integration verified in browser ✓
 
 ---
 
-### Phase 3: The Brain (Week 2-3)
-1.  **Batching Logic** (PENDING): Implement `AlertBatcherService`.
-    -   Logic: "If >5 alerts share label 'Rack-1' within 30s -> Create Incident".
-2.  **RAG Knowledge Base** (COMPLETED ✅): Implement `KnowledgeService` & Docs Integration.
-    -   Function: "Find similar documents where ai_accessible=TRUE".
-    -   Admin UI: `/modules/ai-copilot/knowledge` to manage access.
+### 🚧 Phase 3: The Brain (IN PROGRESS)
+
+#### ✅ RAG Knowledge Base (COMPLETED)
+- **Embedding Service**: Vector embeddings via Ollama `nomic-embed-text` model (768 dimensions)
+- **Knowledge Service**: pgvector similarity search with configurable threshold
+- **Admin UI**: `/modules/ai-copilot/knowledge` for managing AI-accessible documents
+- **Chat Integration**: Automatic RAG context retrieval on every chat request
 
 > **✅ RAG Done:**
-> - Embedding & Knowledge services implemented ✓
-> - Docs module integrated with `ai_accessible` flag ✓
-> - Admin Knowledge Page created ✓
+> - `embedding.service.ts` - batch embedding generation ✓
+> - `knowledge.service.ts` - similarity search, stats, context formatting ✓
+> - `KnowledgePage.tsx` - admin UI with search testing ✓
 > - Chat uses RAG context for answers ✓
+> - Documents have `ai_accessible` flag in documentation-manager module ✓
 
-> **🚧 Remaining:**
-> - Alert Batching logic (`AlertBatcherService`)
+#### 🚧 Alert Batching & Incidents (PENDING)
+1.  **AlertBatcherService** (NOT STARTED): Group alerts into incidents
+    -   Logic: "If >5 alerts share label 'Rack-1' within 30s -> Create Incident"
+    -   Subscribe to alert events from other modules
+    -   Configurable batch window and threshold
+
+2.  **Incident Persistence** (NOT STARTED):
+    -   Database schema for incidents table
+    -   API endpoints: `GET /incidents`, `GET /incidents/:id`
+    -   Real-time updates via SSE or polling
+
+3.  **Wire Situation Deck** (NOT STARTED):
+    -   Replace mock data in `SituationDeck.tsx` with real incident API
+    -   Live incident streaming
+
+4.  **Module Integration** (NOT STARTED):
+    -   Other modules publish alerts to Forge
+    -   Alert ingestion endpoint
 
 ---
 
-### Phase 4: Polish (Week 4)
-1.  **Strict Mode**: Implement the system prompt interceptor.
-2.  **Error Handling**: "Ollama Disconnected" retry logic.
+### Phase 4: Polish (NOT STARTED)
+1.  **Strict Mode**: Implement the system prompt interceptor based on strictness level (1-10).
+2.  **Error Handling**: "Ollama Disconnected" retry logic with UI banner.
+3.  **Global Chat Integration**: Wire `ForgeGlobalChat.tsx` to real Ollama API (currently uses mock responses).
 
 > **✅ Done When:**
 > - Strictness slider (1-10) visibly changes Forge's tone in responses
 > - Ollama disconnect shows "Reconnecting..." banner, auto-recovers
+> - Global floating chat uses real Ollama instead of mock responses
 > - Full user flow works: Alert → Incident → Chat → Promote knowledge
+
+---
+
+## 4. Current Implementation Summary
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Chat with Ollama | ✅ Complete | Streaming supported |
+| Settings persistence | ✅ Complete | Backend + localStorage |
+| RAG knowledge base | ✅ Complete | pgvector similarity search |
+| Knowledge admin UI | ✅ Complete | Toggle AI access, search testing |
+| Global floating chat | ✅ Complete | Auto-hides when module disabled |
+| Alert batching | 🚧 Pending | Not started |
+| Incident persistence | 🚧 Pending | Not started |
+| Real incident data | 🚧 Pending | Currently mock data |
+| Strictness system prompt | 🚧 Pending | Not started |

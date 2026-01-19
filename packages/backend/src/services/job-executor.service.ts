@@ -110,6 +110,10 @@ export class JobExecutorService {
 
   /**
    * Load a job handler from a module
+   * Supports formats:
+   * - "functionName" - loads named export from module entry point
+   * - "path/to/file.ts:functionName" - loads named export from specific file
+   * - "path/to/file.ts" - loads default export from file
    */
   private async loadHandler(
     moduleId: string,
@@ -135,21 +139,52 @@ export class JobExecutorService {
     // Use module path from database, or fall back to data/modules/{name}
     const moduleDir = module.path || path.resolve(process.cwd(), 'data', 'modules', module.name);
 
-    // Validate handler path to prevent directory traversal attacks
-    this.validatePath(moduleDir, handlerPath);
+    // Parse handler path - check for "file:exportName" format
+    let filePath: string;
+    let exportName: string | null = null;
 
-    const modulePath = path.join(moduleDir, handlerPath);
+    if (handlerPath.includes(':')) {
+      const [file, exp] = handlerPath.split(':');
+      filePath = file;
+      exportName = exp;
+    } else if (!handlerPath.includes('/') && !handlerPath.includes('.')) {
+      // Simple function name - load from module entry point
+      const manifest = module.manifest as { entry?: string } | null;
+      filePath = manifest?.entry || 'src/index.ts';
+      // Remove leading ./ if present
+      if (filePath.startsWith('./')) {
+        filePath = filePath.slice(2);
+      }
+      exportName = handlerPath;
+    } else {
+      filePath = handlerPath;
+    }
+
+    // Validate handler path to prevent directory traversal attacks
+    this.validatePath(moduleDir, filePath);
+
+    const modulePath = path.join(moduleDir, filePath);
 
     try {
       // Dynamic import of the handler
       const fileUrl = pathToFileURL(modulePath).href;
       const handlerModule = await import(fileUrl);
 
-      // Handler should export a default function or named 'handler' function
-      const handler = handlerModule.default || handlerModule.handler;
+      // Get the handler function
+      let handler: JobHandler;
 
-      if (typeof handler !== 'function') {
-        throw new Error(`Handler at ${handlerPath} is not a function`);
+      if (exportName) {
+        // Load named export
+        handler = handlerModule[exportName];
+        if (typeof handler !== 'function') {
+          throw new Error(`Export "${exportName}" at ${filePath} is not a function`);
+        }
+      } else {
+        // Load default export or 'handler' named export
+        handler = handlerModule.default || handlerModule.handler;
+        if (typeof handler !== 'function') {
+          throw new Error(`Handler at ${handlerPath} is not a function`);
+        }
       }
 
       // Cache the handler

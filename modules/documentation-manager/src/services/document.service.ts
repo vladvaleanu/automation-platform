@@ -42,6 +42,15 @@ export class DocumentService {
    * Create a new document
    */
   async createDocument(data: CreateDocumentData) {
+    // Check if document with same title already exists
+    const existing = await this.prisma.$queryRaw<Array<{ id: string; title: string }>>`
+      SELECT id, title FROM documents WHERE LOWER(title) = LOWER(${data.title}) LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      throw new Error(`A document with the title "${data.title}" already exists`);
+    }
+
     const slug = this.generateSlug(data.title);
     const contentHtml = markdownService.renderToHtml(data.content);
 
@@ -147,6 +156,17 @@ export class DocumentService {
     const values: any[] = [];
 
     if (data.title) {
+      // Check if another document with same title already exists
+      const existing = await this.prisma.$queryRaw<Array<{ id: string; title: string }>>`
+        SELECT id, title FROM documents
+        WHERE LOWER(title) = LOWER(${data.title}) AND id != ${documentId}::uuid
+        LIMIT 1
+      `;
+
+      if (existing.length > 0) {
+        throw new Error(`A document with the title "${data.title}" already exists`);
+      }
+
       updates.push(`title = $${updates.length + 1}`);
       values.push(data.title);
       updates.push(`slug = $${updates.length + 1}`);

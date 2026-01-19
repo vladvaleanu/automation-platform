@@ -11,7 +11,6 @@ import { createWriteStream, createReadStream } from 'fs';
 import { ModuleContext } from '../types';
 import { registerAuthHook, getUserId } from '../middleware/auth.middleware';
 import { sendSuccess, sendError, sendNotFound, sendBadRequest, sendForbidden } from '../utils/response.utils';
-import '../types/fastify.d';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documentation');
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB

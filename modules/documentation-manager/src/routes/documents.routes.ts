@@ -6,7 +6,6 @@ import { VersionService } from '../services/version.service';
 import { ModuleContext } from '../types';
 import { registerAuthHook, getUserId } from '../middleware/auth.middleware';
 import { sendSuccess, sendCreated, sendError, sendForbidden, sendNotFound } from '../utils/response.utils';
-import '../types/fastify.d';
 
 // Schema definitions
 const createDocumentSchema = z.object({

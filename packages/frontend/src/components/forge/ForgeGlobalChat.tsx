@@ -5,7 +5,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ChatMessage } from '../../modules/ai-copilot/types';
+import { modulesApi } from '../../api/modules';
+import { ModuleStatus } from '../../types/module.types';
 import {
     SparklesIcon,
     XMarkIcon,
@@ -68,6 +71,17 @@ export function ForgeGlobalChat() {
     const location = useLocation();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Check if AI Copilot module is enabled
+    const { data: modules } = useQuery({
+        queryKey: ['modules'],
+        queryFn: () => modulesApi.list(),
+        staleTime: 30000, // Cache for 30 seconds
+        retry: 1,
+    });
+
+    const aiCopilotModule = modules?.find(m => m.name === 'ai-copilot');
+    const isAiCopilotEnabled = aiCopilotModule?.status === ModuleStatus.ENABLED;
 
     // Chat visibility state
     const [chatState, setChatState] = useState<ChatState>(() => {
@@ -165,10 +179,10 @@ export function ForgeGlobalChat() {
         }
     };
 
-    // Don't show fab on the Forge module pages (main or chat)
+    // Don't show if AI Copilot module is disabled or if on Forge module pages
     const isOnForgePage = location.pathname.startsWith('/modules/ai-copilot');
 
-    if (isOnForgePage) {
+    if (!isAiCopilotEnabled || isOnForgePage) {
         return null;
     }
 
