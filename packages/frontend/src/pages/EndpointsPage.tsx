@@ -12,7 +12,7 @@ import { getErrorMessage } from '../utils/error.utils';
 import { showError, showSuccess, showInfo } from '../utils/toast.utils';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
-import { SkeletonLoader } from '../components/LoadingSpinner';
+import { Button, Card, PageHeader, Badge, EmptyState, LoadingState } from '../components/ui';
 
 export default function EndpointsPage() {
   const queryClient = useQueryClient();
@@ -85,9 +85,9 @@ export default function EndpointsPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-          <SkeletonLoader lines={5} />
-        </div>
+        <Card>
+          <LoadingState variant="skeleton" lines={5} />
+        </Card>
       </div>
     );
   }
@@ -95,43 +95,25 @@ export default function EndpointsPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Power Meter Endpoints
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Configure and manage power consumption monitoring endpoints
-          </p>
-        </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={18} />
-          Add Endpoint
-        </button>
-      </div>
+      <PageHeader
+        title="Power Meter Endpoints"
+        description="Configure and manage power consumption monitoring endpoints"
+        actions={
+          <Button onClick={() => setIsModalOpen(true)} leftIcon={<Plus size={18} />}>
+            Add Endpoint
+          </Button>
+        }
+      />
 
       {/* Endpoints Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <Card noPadding className="overflow-hidden">
         {endpoints.length === 0 ? (
-          <div className="p-12 text-center">
-            <Power size={48} className="mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No endpoints configured
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Get started by adding your first power meter endpoint
-            </p>
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              <Plus size={18} />
-              Add Your First Endpoint
-            </button>
-          </div>
+          <EmptyState
+            icon={<Power size={48} />}
+            title="No endpoints configured"
+            description="Get started by adding your first power meter endpoint"
+            action={{ label: 'Add Your First Endpoint', onClick: () => setIsModalOpen(true) }}
+          />
         ) : (
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
@@ -193,15 +175,9 @@ export default function EndpointsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {endpoint.enabled ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                        Enabled
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                        Disabled
-                      </span>
-                    )}
+                    <Badge variant={endpoint.enabled ? 'success' : 'neutral'} size="sm">
+                      {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                    </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900 dark:text-white">
@@ -210,27 +186,32 @@ export default function EndpointsPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end gap-2">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="xs"
                         onClick={() => handleTest(endpoint.id)}
-                        className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
                         title="Test scraping"
+                        className="text-purple-600 hover:text-purple-900 dark:text-purple-400"
                       >
                         <TestTube size={18} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
                         onClick={() => handleEdit(endpoint)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         title="Edit"
                       >
                         <Edit2 size={18} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
                         onClick={() => handleDelete(endpoint.id, endpoint.name)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                         title="Delete"
+                        className="text-red-600 hover:text-red-900 dark:text-red-400"
                       >
                         <Trash2 size={18} />
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -238,35 +219,35 @@ export default function EndpointsPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
 
       {/* Stats */}
       {endpoints.length > 0 && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <Card>
             <div className="text-sm text-gray-600 dark:text-gray-400">Total Endpoints</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
               {endpoints.length}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm text-gray-600 dark:text-gray-400">Enabled</div>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               {endpoints.filter(e => e.enabled).length}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm text-gray-600 dark:text-gray-400">Disabled</div>
             <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">
               {endpoints.filter(e => !e.enabled).length}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm text-gray-600 dark:text-gray-400">Auth Required</div>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               {endpoints.filter(e => e.authType !== 'none').length}
             </div>
-          </div>
+          </Card>
         </div>
       )}
 

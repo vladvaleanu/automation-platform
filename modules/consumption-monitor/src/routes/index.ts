@@ -4,7 +4,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { ModuleContext } from '../types/index.js';
+import { BrowserModuleContext } from '../types/index.js';
 import { scrape, type AuthConfig, type ScrapingConfig } from '../lib/scraper.js';
 
 interface ReadingsQuery {
@@ -31,7 +31,7 @@ interface SummaryQuery {
 /**
  * Register consumption monitoring routes
  */
-export async function registerRoutes(fastify: FastifyInstance, context: ModuleContext) {
+export async function registerRoutes(fastify: FastifyInstance, context: BrowserModuleContext) {
   const { prisma, logger, browser } = context.services;
 
   // GET /readings - Query consumption readings
@@ -594,27 +594,60 @@ export async function registerRoutes(fastify: FastifyInstance, context: ModuleCo
   fastify.post<{ Params: { id: string } }>('/endpoints/:id/test', async (request, reply) => {
     const { id } = request.params;
 
-    const endpoint = await prisma.endpoint.findUnique({ where: { id } });
-    if (!endpoint) {
-      return reply.status(404).send({
-        success: false,
-        error: { message: 'Endpoint not found', statusCode: 404 },
-      });
-    }
+    logger.info(`[Test Endpoint] Testing endpoint ${id}`);
 
     try {
+      // Validate browser service is available
+      if (!browser) {
+        logger.error('[Test Endpoint] Browser service not available in module context');
+        return reply.status(500).send({
+          success: false,
+          error: {
+            message: 'Browser service not available',
+            statusCode: 500
+          },
+        });
+      }
+
+      const endpoint = await prisma.endpoint.findUnique({ where: { id } });
+      if (!endpoint) {
+        logger.warn(`[Test Endpoint] Endpoint not found: ${id}`);
+        return reply.status(404).send({
+          success: false,
+          error: { message: 'Endpoint not found', statusCode: 404 },
+        });
+      }
+
+      logger.info(`[Test Endpoint] Found endpoint: ${endpoint.name} (${endpoint.ipAddress})`);
+
       // Use the core browserService via the scraper utility
-      const result = await scrape(
-        browser,
-        `http://${endpoint.ipAddress}`,
-        endpoint.authType as 'none' | 'basic' | 'form',
-        endpoint.authConfig as AuthConfig | null,
-        endpoint.scrapingConfig as ScrapingConfig | null,
-        { screenshotOnError: true },
-        logger
-      );
+      logger.info('[Test Endpoint] Starting scrape operation...');
+
+      let result;
+      try {
+        result = await scrape(
+          browser,
+          `http://${endpoint.ipAddress}`,
+          endpoint.authType as 'none' | 'basic' | 'form',
+          endpoint.authConfig as AuthConfig | null,
+          endpoint.scrapingConfig as ScrapingConfig | null,
+          { screenshotOnError: true },
+          logger
+        );
+        logger.info('[Test Endpoint] Scrape operation completed');
+      } catch (scrapeError: any) {
+        logger.error(`[Test Endpoint] Scrape operation threw an error: ${scrapeError.message}`, scrapeError);
+        return reply.status(500).send({
+          success: false,
+          error: {
+            message: `Scraping error: ${scrapeError.message}`,
+            statusCode: 500
+          },
+        });
+      }
 
       if (!result.success) {
+        logger.warn(`[Test Endpoint] Scraping failed for ${endpoint.name}: ${result.error}`);
         return reply.status(400).send({
           success: false,
           error: {
@@ -629,6 +662,8 @@ export async function registerRoutes(fastify: FastifyInstance, context: ModuleCo
         });
       }
 
+      logger.info(`[Test Endpoint] Scraping successful for ${endpoint.name}: ${result.value}`);
+
       return {
         success: true,
         data: {
@@ -640,7 +675,7 @@ export async function registerRoutes(fastify: FastifyInstance, context: ModuleCo
         },
       };
     } catch (error: any) {
-      logger.error(`[Test Endpoint] Failed to test endpoint ${endpoint.name}: ${error.message}`);
+      logger.error(`[Test Endpoint] Unexpected error: ${error.message}`, error);
       return reply.status(500).send({
         success: false,
         error: {

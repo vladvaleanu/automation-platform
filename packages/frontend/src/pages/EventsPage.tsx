@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
+import { PageHeader, Card, Input, FormField, EmptyState, LoadingState, Button } from '../components/ui';
+import { getErrorMessage } from '../utils/error.utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -70,37 +72,35 @@ export default function EventsPage() {
 
   return (
     <div className="p-8">
-    
+
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Events</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Cross-module communication and event history
-          </p>
-        </div>
+        <PageHeader
+          title="Events"
+          description="Cross-module communication and event history"
+        />
 
         {/* Statistics Cards */}
         {stats && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            <Card>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Events</h3>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.total.toLocaleString()}
               </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            </Card>
+            <Card>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Last 24 Hours</h3>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.last24h.toLocaleString()}
               </p>
-            </div>
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+            </Card>
+            <Card>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Last 7 Days</h3>
               <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.last7d.toLocaleString()}
               </p>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -109,7 +109,7 @@ export default function EventsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Top Events */}
             {stats.topEvents.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <Card>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Top Events
                 </h3>
@@ -125,12 +125,12 @@ export default function EventsPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             )}
 
             {/* Top Sources */}
             {stats.topSources.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+              <Card>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Top Sources
                 </h3>
@@ -146,19 +146,16 @@ export default function EventsPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             )}
           </div>
         )}
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+        <Card>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Event Name
-              </label>
-              <input
+            <FormField label="Event Name">
+              <Input
                 type="text"
                 value={nameFilter}
                 onChange={(e) => {
@@ -166,14 +163,10 @@ export default function EventsPage() {
                   setPage(1);
                 }}
                 placeholder="Filter by event name..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Source
-              </label>
-              <input
+            </FormField>
+            <FormField label="Source">
+              <Input
                 type="text"
                 value={sourceFilter}
                 onChange={(e) => {
@@ -181,39 +174,33 @@ export default function EventsPage() {
                   setPage(1);
                 }}
                 placeholder="Filter by source..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
-            </div>
+            </FormField>
           </div>
-        </div>
+        </Card>
 
         {/* Loading */}
-        {isLoading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading events...</p>
-          </div>
-        )}
+        {isLoading && <LoadingState text="Loading events..." />}
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+          <Card className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <p className="text-sm text-red-800 dark:text-red-200">
-              Failed to load events: {(error as any).message}
+              Failed to load events: {getErrorMessage(error)}
             </p>
-          </div>
+          </Card>
         )}
 
         {/* Events List */}
         {!isLoading && !error && events.length === 0 && (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-500 dark:text-gray-400">No events found</p>
-          </div>
+          <EmptyState
+            title="No events found"
+          />
         )}
 
         {!isLoading && !error && events.length > 0 && (
           <>
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <Card noPadding className="overflow-hidden">
               <div className="divide-y divide-gray-200 dark:divide-gray-700">
                 {events.map((event) => (
                   <div key={event.id} className="p-6">
@@ -243,7 +230,7 @@ export default function EventsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
@@ -252,27 +239,27 @@ export default function EventsPage() {
                   Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
                 </div>
                 <div className="flex space-x-2">
-                  <button
+                  <Button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                    variant="secondary"
                   >
                     Previous
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
                     disabled={page === pagination.totalPages}
-                    className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                    variant="secondary"
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
           </>
         )}
       </div>
-    
+
     </div>
   );
 }

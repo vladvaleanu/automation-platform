@@ -2,12 +2,15 @@
  * Executions Page - View job execution history
  */
 
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { Button, Card, PageHeader, Badge, LoadingState, EmptyState } from '../components/ui';
+import { ClockIcon } from '@heroicons/react/24/outline';
+import { getErrorMessage } from '../utils/error.utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -31,6 +34,7 @@ interface Execution {
 
 function ExecutionsPageContent() {
   const { jobId } = useParams();
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<ExecutionStatus | 'all'>('all');
   const [page, setPage] = useState(1);
 
@@ -58,18 +62,16 @@ function ExecutionsPageContent() {
   const executions: Execution[] = executionsData?.data || [];
   const pagination = executionsData?.pagination;
 
-  // Memoize status colors to avoid recreating on every render
-  const STATUS_COLORS = useMemo(() => ({
-    COMPLETED: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-    RUNNING: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-    FAILED: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
-    TIMEOUT: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400',
-    CANCELLED: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
-    PENDING: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
-  } as const), []);
-
-  const getStatusColor = (status: ExecutionStatus) => {
-    return STATUS_COLORS[status] || STATUS_COLORS.PENDING;
+  const getStatusVariant = (status: ExecutionStatus) => {
+    switch (status) {
+      case 'COMPLETED': return 'success';
+      case 'RUNNING': return 'info';
+      case 'FAILED': return 'error';
+      case 'TIMEOUT': return 'warning';
+      case 'CANCELLED': return 'neutral';
+      case 'PENDING': return 'warning';
+      default: return 'neutral';
+    }
   };
 
   const formatDuration = (ms?: number) => {
@@ -81,75 +83,70 @@ function ExecutionsPageContent() {
 
   return (
     <div className="p-8">
-    
+
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Execution History
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {jobId ? 'Job-specific execution history' : 'All job executions'}
-            </p>
-          </div>
-          {jobId && (
-            <Link
-              to="/jobs"
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md font-medium"
-            >
-              Back to Jobs
-            </Link>
-          )}
-        </div>
+        <PageHeader
+          title="Execution History"
+          description={jobId ? 'Job-specific execution history' : 'All job executions'}
+          actions={
+            jobId ? (
+              <Button onClick={() => navigate('/jobs')} variant="secondary">
+                Back to Jobs
+              </Button>
+            ) : undefined
+          }
+        />
 
         {/* Status Filters */}
-        <div className="flex flex-wrap gap-2">
-          {['all', 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMEOUT', 'CANCELLED'].map((status) => (
-            <button
-              key={status}
-              onClick={() => {
-                setStatusFilter(status as any);
-                setPage(1);
-              }}
-              className={`px-3 py-1 rounded-md text-xs font-medium ${
-                statusFilter === status
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
+        <Card className="p-4">
+          <div className="flex flex-wrap gap-2">
+            {['all', 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'TIMEOUT', 'CANCELLED'].map((status) => (
+              <Button
+                key={status}
+                variant={statusFilter === status ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setStatusFilter(status as any);
+                  setPage(1);
+                }}
+              >
+                {status}
+              </Button>
+            ))}
+          </div>
+        </Card>
 
         {/* Loading */}
         {isLoading && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading executions...</p>
-          </div>
+          <Card>
+            <LoadingState text="Loading executions..." />
+          </Card>
         )}
 
         {/* Error */}
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
             <p className="text-sm text-red-800 dark:text-red-200">
-              Failed to load executions: {(error as any).message}
+              Failed to load executions: {getErrorMessage(error)}
             </p>
           </div>
         )}
 
         {/* Executions List */}
         {!isLoading && !error && executions.length === 0 && (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-500 dark:text-gray-400">No executions found</p>
-          </div>
+          <Card>
+            <EmptyState
+              icon={<ClockIcon className="h-12 w-12" />}
+              title="No executions found"
+              description="Job execution history will appear here once jobs are run."
+            />
+          </Card>
         )}
 
         {!isLoading && !error && executions.length > 0 && (
           <>
-            <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+            <Card noPadding className="overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-900">
                   <tr>
@@ -182,13 +179,9 @@ function ExecutionsPageContent() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                            execution.status
-                          )}`}
-                        >
+                        <Badge variant={getStatusVariant(execution.status)}>
                           {execution.status}
-                        </span>
+                        </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {formatDistanceToNow(new Date(execution.startedAt), { addSuffix: true })}
@@ -197,18 +190,17 @@ function ExecutionsPageContent() {
                         {formatDuration(execution.duration)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link
-                          to={`/executions/${execution.id}`}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          View Details
+                        <Link to={`/executions/${execution.id}`}>
+                          <Button variant="ghost" size="sm">
+                            View Details
+                          </Button>
                         </Link>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
 
             {/* Pagination */}
             {pagination && pagination.totalPages > 1 && (
@@ -217,20 +209,20 @@ function ExecutionsPageContent() {
                   Page {pagination.page} of {pagination.totalPages} ({pagination.total} total)
                 </div>
                 <div className="flex space-x-2">
-                  <button
+                  <Button
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                    variant="outline"
                   >
                     Previous
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
                     disabled={page === pagination.totalPages}
-                    className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                    variant="outline"
                   >
                     Next
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -255,12 +247,12 @@ export default function ExecutionsPage() {
             <p className="text-sm text-red-700 dark:text-red-300 mb-4">
               There was an error loading the execution history. Please try refreshing the page.
             </p>
-            <button
+            <Button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+              variant="danger"
             >
               Refresh Page
-            </button>
+            </Button>
           </div>
         </div>
       }

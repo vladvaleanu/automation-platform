@@ -14,12 +14,23 @@ import {
 } from '@heroicons/react/24/outline';
 import { useForgeSettings } from '../../../contexts/ForgeSettingsContext';
 import { DEFAULT_FORGE_SETTINGS, type ForgeSettings } from '../../../types/forge-settings';
+import { Button, Input, Select, FormField, Card } from '../../../components/ui';
+import { useConfirm } from '../../../hooks/useConfirm';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 export function SettingsPage() {
     const { settings, isLoaded, saveSettings, resetSettings } = useForgeSettings();
     const [localSettings, setLocalSettings] = useState<ForgeSettings>(DEFAULT_FORGE_SETTINGS);
     const [isSaved, setIsSaved] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
+
+    // Confirm modal state
+    const {
+        confirmState,
+        confirm,
+        handleConfirm,
+        handleClose
+    } = useConfirm();
 
     // Sync local state when settings load from localStorage
     useEffect(() => {
@@ -48,11 +59,19 @@ export function SettingsPage() {
     };
 
     const handleReset = () => {
-        if (confirm('Are you sure you want to reset all settings to default?')) {
-            resetSettings();
-            setLocalSettings(DEFAULT_FORGE_SETTINGS);
-            showInfo('Settings reset to defaults');
-        }
+        confirm(
+            async () => {
+                resetSettings();
+                setLocalSettings(DEFAULT_FORGE_SETTINGS);
+                showInfo('Settings reset to defaults');
+            },
+            {
+                title: 'Reset Settings',
+                message: 'Are you sure you want to reset all settings to default?',
+                confirmText: 'Reset',
+                variant: 'danger',
+            }
+        );
     };
 
     const handleTestConnection = () => {
@@ -127,70 +146,55 @@ export function SettingsPage() {
                     description="Configure the LLM provider for Forge's responses"
                 >
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Provider Engine
-                            </label>
-                            <select
+                        <FormField label="Provider Engine">
+                            <Select
                                 value={localSettings.provider}
                                 onChange={e => handleChange('provider', e.target.value as ForgeSettings['provider'])}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             >
                                 <option value="ollama">Ollama</option>
                                 <option value="localai">LocalAI</option>
                                 <option value="openai-compatible">OpenAI-Compatible</option>
-                            </select>
-                        </div>
+                            </Select>
+                        </FormField>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                API Endpoint
-                            </label>
+                        <FormField label="API Endpoint">
                             <div className="flex gap-2">
-                                <input
+                                <Input
                                     type="text"
                                     value={localSettings.baseUrl}
                                     onChange={e => handleChange('baseUrl', e.target.value)}
                                     placeholder="http://localhost:11434"
-                                    className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="flex-1"
                                 />
-                                <button
+                                <Button
                                     onClick={handleTestConnection}
                                     disabled={isTesting}
-                                    className="px-3 py-2 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 border border-purple-300 dark:border-purple-500/50 rounded-lg transition-colors disabled:opacity-50"
+                                    variant="secondary"
                                 >
                                     {isTesting ? 'Testing...' : 'Test'}
-                                </button>
+                                </Button>
                             </div>
-                        </div>
+                        </FormField>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Chat Model
-                            </label>
-                            <input
+                        <FormField label="Chat Model">
+                            <Input
                                 type="text"
                                 value={localSettings.model}
                                 onChange={e => handleChange('model', e.target.value)}
                                 placeholder="llama3.1"
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
-                        </div>
+                        </FormField>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Context Window
-                            </label>
-                            <input
+                        <FormField label="Context Window">
+                            <Input
                                 type="number"
                                 value={localSettings.contextWindow}
                                 onChange={e => handleChange('contextWindow', parseInt(e.target.value) || 8192)}
                                 min={1024}
                                 max={128000}
                                 step={1024}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
-                        </div>
+                        </FormField>
                     </div>
                 </SettingsSection>
 
@@ -202,33 +206,25 @@ export function SettingsPage() {
                     warning
                 >
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Embedding Provider
-                            </label>
-                            <select
+                        <FormField label="Embedding Provider">
+                            <Select
                                 value={localSettings.embeddingProvider}
                                 onChange={e => handleChange('embeddingProvider', e.target.value as ForgeSettings['embeddingProvider'])}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             >
                                 <option value="same">Same as Generation</option>
                                 <option value="nomic-embed-text">nomic-embed-text</option>
                                 <option value="mxbai-embed-large">mxbai-embed-large</option>
-                            </select>
-                        </div>
+                            </Select>
+                        </FormField>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Embedding Model
-                            </label>
-                            <input
+                        <FormField label="Embedding Model">
+                            <Input
                                 type="text"
                                 value={localSettings.embeddingModel}
                                 onChange={e => handleChange('embeddingModel', e.target.value)}
                                 placeholder="nomic-embed-text"
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
-                        </div>
+                        </FormField>
                     </div>
                 </SettingsSection>
 
@@ -240,18 +236,14 @@ export function SettingsPage() {
                 >
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Persona Name
-                                </label>
-                                <input
+                            <FormField label="Persona Name">
+                                <Input
                                     type="text"
                                     value={localSettings.personaName}
                                     onChange={e => handleChange('personaName', e.target.value)}
                                     placeholder="Forge"
-                                    className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 />
-                            </div>
+                            </FormField>
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -308,42 +300,40 @@ export function SettingsPage() {
                     description="Configure how alerts are grouped into incidents"
                 >
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Batch Window (seconds)
-                            </label>
-                            <input
+                        <FormField label="Batch Window (seconds)" helpText="Time to wait before analyzing grouped alerts">
+                            <Input
                                 type="number"
                                 value={localSettings.batchWindowSeconds}
                                 onChange={e => handleChange('batchWindowSeconds', parseInt(e.target.value) || 30)}
                                 min={5}
                                 max={300}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                                Time to wait before analyzing grouped alerts
-                            </p>
-                        </div>
+                        </FormField>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Min Alerts for Incident
-                            </label>
-                            <input
+                        <FormField label="Min Alerts for Incident" helpText="Minimum alerts needed to create an incident">
+                            <Input
                                 type="number"
                                 value={localSettings.minAlertsForIncident}
                                 onChange={e => handleChange('minAlertsForIncident', parseInt(e.target.value) || 5)}
                                 min={1}
                                 max={50}
-                                className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                                Minimum alerts needed to create an incident
-                            </p>
-                        </div>
+                        </FormField>
                     </div>
                 </SettingsSection>
             </div>
+
+            <ConfirmModal
+                isOpen={confirmState.isOpen}
+                onClose={handleClose}
+                onConfirm={handleConfirm}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmText={confirmState.confirmText}
+                cancelText={confirmState.cancelText}
+                variant={confirmState.variant}
+                isLoading={confirmState.isLoading}
+            />
         </div>
     );
 }
@@ -363,7 +353,7 @@ function SettingsSection({
     children: React.ReactNode;
 }) {
     return (
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <Card noPadding className="overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                 <div className="flex items-center gap-3">
                     <div className="text-purple-600 dark:text-purple-400">{icon}</div>
@@ -383,7 +373,7 @@ function SettingsSection({
                 </div>
             </div>
             <div className="px-6 py-4">{children}</div>
-        </div>
+        </Card>
     );
 }
 

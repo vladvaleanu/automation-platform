@@ -40,7 +40,9 @@ export function ChatPage() {
                 const parsed = JSON.parse(saved);
                 return parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
             }
-        } catch { }
+        } catch {
+            // Ignore parsing errors, use default messages
+        }
         return INITIAL_MESSAGES;
     });
 

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { getErrorMessage } from '../utils/error.utils';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -44,9 +45,9 @@ export default function ExecutionDetailPage() {
       });
       return response.data;
     },
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // Auto-refresh if still running
-      const status = data?.data?.status;
+      const status = query.state.data?.data?.status;
       return status === 'RUNNING' || status === 'PENDING' ? 2000 : false;
     },
   });
@@ -80,7 +81,7 @@ export default function ExecutionDetailPage() {
 
   return (
     <div className="p-8">
-    
+
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -112,7 +113,7 @@ export default function ExecutionDetailPage() {
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
             <p className="text-sm text-red-800 dark:text-red-200">
-              Failed to load execution: {(error as any).message}
+              Failed to load execution: {getErrorMessage(error)}
             </p>
           </div>
         )}
@@ -222,7 +223,7 @@ export default function ExecutionDetailPage() {
           </>
         )}
       </div>
-    
+
     </div>
   );
 }

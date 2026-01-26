@@ -56,7 +56,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
         FROM document_folders f
         LEFT JOIN documents d ON f.id = d.folder_id AND d.deleted_at IS NULL
         LEFT JOIN document_folders sf ON f.id = sf.parent_id
-        WHERE f.category_id = ${categoryId}::uuid
+        WHERE f.category_id = ${categoryId}
         GROUP BY f.id
         ORDER BY f.\"order\" ASC, f.name ASC
       `;
@@ -104,7 +104,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
           ) as category
         FROM document_folders f
         JOIN document_categories c ON f.category_id = c.id
-        WHERE f.id = ${id}::uuid
+        WHERE f.id = ${id}
       `;
 
       if (folders.length === 0) {
@@ -123,7 +123,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
           COUNT(DISTINCT d.id)::int as document_count
         FROM document_folders f
         LEFT JOIN documents d ON f.id = d.folder_id AND d.deleted_at IS NULL
-        WHERE f.parent_id = ${id}::uuid
+        WHERE f.parent_id = ${id}
         GROUP BY f.id
         ORDER BY f.\"order\" ASC, f.name ASC
       `;
@@ -139,7 +139,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
           ) as author
         FROM documents d
         JOIN users u ON d.author_id = u.id
-        WHERE d.folder_id = ${id}::uuid
+        WHERE d.folder_id = ${id}
         ORDER BY d.updated_at DESC
       `;
 
@@ -172,7 +172,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       // Verify parent folder belongs to same category if specified
       if (data.parentId) {
         const parentFolders = await prisma.$queryRaw<Array<{ category_id: string }>>`
-          SELECT category_id FROM document_folders WHERE id = ${data.parentId}::uuid
+          SELECT category_id FROM document_folders WHERE id = ${data.parentId}
         `;
 
         if (parentFolders.length === 0) {
@@ -194,8 +194,8 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
         INSERT INTO document_folders (name, category_id, parent_id, "order")
         VALUES (
           ${data.name},
-          ${data.categoryId}::uuid,
-          ${data.parentId || null}::uuid,
+          ${data.categoryId},
+          ${data.parentId || null},
           ${data.order || 0}
         )
         RETURNING id
@@ -204,7 +204,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       const folderId = result[0].id;
 
       const folders = await prisma.$queryRaw<FolderWithChildren[]>`
-        SELECT * FROM document_folders WHERE id = ${folderId}::uuid
+        SELECT * FROM document_folders WHERE id = ${folderId}
       `;
 
       reply.status(201).send({
@@ -231,7 +231,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
 
       // Verify folder exists
       const existing = await prisma.$queryRaw<Array<{ category_id: string }>>`
-        SELECT category_id FROM document_folders WHERE id = ${id}::uuid
+        SELECT category_id FROM document_folders WHERE id = ${id}
       `;
 
       if (existing.length === 0) {
@@ -251,7 +251,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
         }
 
         const parentFolders = await prisma.$queryRaw<Array<{ category_id: string }>>`
-          SELECT category_id FROM document_folders WHERE id = ${data.parentId}::uuid
+          SELECT category_id FROM document_folders WHERE id = ${data.parentId}
         `;
 
         if (parentFolders.length === 0) {
@@ -280,7 +280,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       }
 
       if (data.parentId !== undefined) {
-        updates.push(`parent_id = $${paramIndex}::uuid`);
+        updates.push(`parent_id = $${paramIndex}`);
         values.push(data.parentId);
         paramIndex++;
       }
@@ -293,7 +293,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
 
       if (updates.length === 0) {
         const folders = await prisma.$queryRaw<FolderWithChildren[]>`
-          SELECT * FROM document_folders WHERE id = ${id}::uuid
+          SELECT * FROM document_folders WHERE id = ${id}
         `;
         return reply.send({
           success: true,
@@ -306,11 +306,11 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       await prisma.$executeRawUnsafe(`
         UPDATE document_folders
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex}::uuid
+        WHERE id = $${paramIndex}
       `, ...values, id);
 
       const folders = await prisma.$queryRaw<FolderWithChildren[]>`
-        SELECT * FROM document_folders WHERE id = ${id}::uuid
+        SELECT * FROM document_folders WHERE id = ${id}
       `;
 
       reply.send({
@@ -336,7 +336,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
 
       // Check if folder has documents
       const docCount = await prisma.$queryRaw<Array<{ count: number }>>`
-        SELECT COUNT(*)::int as count FROM documents WHERE folder_id = ${id}::uuid
+        SELECT COUNT(*)::int as count FROM documents WHERE folder_id = ${id}
       `;
 
       if (docCount[0].count > 0) {
@@ -348,7 +348,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
 
       // Check if folder has subfolders
       const folderCount = await prisma.$queryRaw<Array<{ count: number }>>`
-        SELECT COUNT(*)::int as count FROM document_folders WHERE parent_id = ${id}::uuid
+        SELECT COUNT(*)::int as count FROM document_folders WHERE parent_id = ${id}
       `;
 
       if (folderCount[0].count > 0) {
@@ -359,7 +359,7 @@ export async function foldersRoutes(app: FastifyInstance, context: ModuleContext
       }
 
       await prisma.$executeRaw`
-        DELETE FROM document_folders WHERE id = ${id}::uuid
+        DELETE FROM document_folders WHERE id = ${id}
       `;
 
       reply.send({

@@ -4,6 +4,7 @@
 
 import { ReactNode, useState, DragEvent } from 'react';
 import { GripVertical, X, Maximize2, Minimize2 } from 'lucide-react';
+import { Card, CardHeader, CardContent } from '../ui/Card';
 
 interface DashboardCardProps {
   id: string;
@@ -68,7 +69,8 @@ export function DashboardCard({
   };
 
   return (
-    <div
+    <Card
+      noPadding
       draggable={!isLocked}
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
@@ -76,7 +78,6 @@ export function DashboardCard({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={`
-        bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700
         transition-all duration-200
         ${isDragging ? 'opacity-50 scale-95' : ''}
         ${isOver ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900' : ''}
@@ -86,7 +87,7 @@ export function DashboardCard({
       `}
     >
       {/* Card Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+      <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           {!isLocked && (
             <GripVertical size={16} className="text-gray-400 dark:text-gray-500" />
@@ -96,7 +97,7 @@ export function DashboardCard({
         <div className="flex items-center gap-1">
           {onToggleExpand && (
             <button
-              onClick={() => onToggleExpand(id)}
+              onClick={() => onToggleExpand?.(id)}
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               title={isExpanded ? 'Minimize' : 'Expand'}
             >
@@ -105,7 +106,7 @@ export function DashboardCard({
           )}
           {onRemove && !isLocked && (
             <button
-              onClick={() => onRemove(id)}
+              onClick={() => onRemove?.(id)}
               className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500"
               title="Remove card"
             >
@@ -113,13 +114,13 @@ export function DashboardCard({
             </button>
           )}
         </div>
-      </div>
+      </CardHeader>
 
       {/* Card Content */}
-      <div className="p-4">
+      <CardContent>
         {children}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

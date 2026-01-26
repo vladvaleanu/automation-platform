@@ -5,13 +5,15 @@
 
 // Module context
 import { PrismaClient } from '@prisma/client';
-import { FastifyBaseLogger } from 'fastify';
 
-export interface ModuleContext {
-    services: {
+// Re-export shared types for convenience
+export type { ModuleContext } from '@nxforge/shared';
+
+// Augment Fastify with decorated services from core
+declare module 'fastify' {
+    interface FastifyInstance {
         prisma: PrismaClient;
-        logger: FastifyBaseLogger;
-    };
+    }
 }
 
 // Document types

@@ -39,7 +39,7 @@ export function RichTextEditor({
   onChange,
   placeholder = 'Start writing...',
   editable = true,
-  documentId,
+  documentId: _documentId, // Keep prop for future use
 }: RichTextEditorProps) {
   const [showMediaBrowser, setShowMediaBrowser] = useState(false);
   const editor = useEditor({

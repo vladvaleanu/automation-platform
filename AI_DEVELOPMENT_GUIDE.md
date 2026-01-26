@@ -158,6 +158,24 @@ src/
     └── response.utils.ts
 ```
 
+### Shared (`packages/shared/`)
+```
+src/
+├── index.ts             # Main export point
+├── module.types.ts      # Module context and service interfaces
+├── services.types.ts    # Core service type definitions
+└── fastify.augments.js  # Fastify type augmentations
+```
+
+**Purpose**: Provides unified type definitions for modules to ensure consistency.
+
+**Key Types**:
+- `ModuleContext` - Base context for all modules (prisma + logger)
+- `BrowserModuleContext` - For modules needing browser automation
+- `FullModuleContext` - For modules needing all services
+- `JobContext` - For job handlers
+- `BrowserService`, `EventBusService` - Service interfaces
+
 ### Frontend (`packages/frontend/`)
 ```
 src/
@@ -243,9 +261,33 @@ const data = response.data as any;
 
 // BAD - Never create duplicate types
 interface MyModuleStatus { ... } // Already exists as $Enums.ModuleStatus
+
+// BAD - Never define ModuleContext locally
+interface ModuleContext { ... } // Use @nxforge/shared instead
 ```
 
 ### ✅ ALWAYS USE:
+
+#### For Module Types:
+```typescript
+// Import shared types from @nxforge/shared
+import type { ModuleContext, BrowserModuleContext, JobContext } from '@nxforge/shared';
+
+// Use ModuleContext for basic modules (prisma + logger)
+const context: ModuleContext = {
+  module: { id: 'my-module', name: 'my-module', version: '1.0.0' },
+  services: { prisma, logger: app.log }
+};
+
+// Use BrowserModuleContext for modules needing browser automation
+const context: BrowserModuleContext = {
+  module: { id: 'my-module', name: 'my-module', version: '1.0.0' },
+  services: { prisma, logger: app.log, browser: browserService }
+};
+
+// Re-export in module's types/index.ts for convenience
+export type { ModuleContext, BrowserModuleContext } from '@nxforge/shared';
+```
 
 #### For Prisma Enums:
 ```typescript
@@ -286,6 +328,68 @@ declare module 'fastify' {
   }
 }
 ```
+
+#### For Prisma vs Raw SQL:
+```typescript
+// ✅ GOOD - Use Prisma for simple CRUD operations
+const document = await prisma.document.create({
+  data: {
+    title: data.title,
+    slug: generateSlug(data.title),
+    content: data.content,
+    contentHtml: markdownService.renderToHtml(data.content),
+    categoryId: data.categoryId,
+    authorId: data.authorId,
+  },
+});
+
+// ✅ GOOD - Use Prisma upsert for insert-or-update patterns
+const tag = await prisma.tag.upsert({
+  where: { name: tagName },
+  update: {},
+  create: { name: tagName },
+});
+
+// ✅ GOOD - Use raw SQL for complex queries
+// (JSON aggregation, full-text search, PostgreSQL-specific features)
+const documents = await prisma.$queryRaw<DocumentWithRelations[]>`
+  SELECT
+    d.*,
+    json_build_object('id', c.id, 'name', c.name) as category,
+    COALESCE(
+      json_agg(DISTINCT jsonb_build_object('id', t.id, 'name', t.name)) 
+      FILTER (WHERE t.id IS NOT NULL),
+      '[]'
+    ) as tags
+  FROM documents d
+  JOIN document_categories c ON d.category_id = c.id
+  LEFT JOIN document_tags dt ON d.id = dt.document_id
+  LEFT JOIN tags t ON dt.tag_id = t.id
+  WHERE to_tsvector('english', d.title || ' ' || d.content) 
+        @@ plainto_tsquery('english', ${searchTerm})
+  GROUP BY d.id, c.id
+`;
+
+// ❌ BAD - Don't use raw SQL for simple operations
+const document = await prisma.$queryRaw`
+  INSERT INTO documents (title, content) VALUES (${title}, ${content})
+`;
+// Use prisma.document.create() instead!
+```
+
+**When to use Prisma:**
+- Simple CRUD (create, read, update, delete)
+- Relations and includes
+- Type-safe operations
+- Transactions
+- Upserts (insert or update)
+
+**When to use Raw SQL:**
+- Complex JOINs with JSON aggregation
+- Full-text search
+- PostgreSQL-specific features (vectors, GIS, etc.)
+- Performance-critical queries with specific indexes
+- Dynamic WHERE clauses with many conditions
 
 ---
 
@@ -372,22 +476,50 @@ const mutation = useMutation({
 });
 ```
 
-### Component Patterns
+### UI Components & Patterns
 
-```typescript
-// Prefer functional components with TypeScript interfaces
-interface JobCardProps {
-  job: Job;
-  onEdit: (id: string) => void;
-}
+The project uses a unified component library in `src/components/ui`. **You MUST use these components** instead of raw HTML or custom implementations to ensure consistency and accessibility.
 
-export function JobCard({ job, onEdit }: JobCardProps) {
-  return (
-    <Card>
-      {/* Implementation */}
-    </Card>
-  );
-}
+#### Core Components
+| Component | Usage |
+|-----------|-------|
+| `PageHeader` | Standard page title, description, and action buttons |
+| `Card` | Content container. Use `noPadding` for tables/lists |
+| `Button` | Standard actions. Use `isLoading` for async operations |
+| `Input` / `Select` | Form controls with error states and accessibility built-in |
+| `FormField` | **MANDATORY** wrapper for inputs to handle labels and errors |
+| `LoadingState` | Standard loading spinner/text center-aligned |
+| `EmptyState` | Standard view for empty lists/data with icon and call-to-action |
+| `Modal` | Dialogs for critical actions or complex forms |
+
+#### Form Pattern
+Always wrap inputs in `FormField` to automatically handle ids, labels, and error messages.
+
+```tsx
+// ✅ Good
+<FormField label="Email Address" error={errors.email?.message} required>
+  <Input {...register('email')} placeholder="user@example.com" />
+</FormField>
+
+// ❌ Bad
+<div className="mb-4">
+  <label>Email</label>
+  <input className="border..." type="email" />
+</div>
+```
+
+#### Loading & Empty States
+Avoid custom spinners or "No results" text.
+
+```tsx
+if (isLoading) return <LoadingState text="Loading items..." />;
+if (!data.length) return (
+  <EmptyState 
+    title="No Items Found" 
+    description="Create a new item to get started" 
+    icon={<ArchiveBoxIcon />} 
+  />
+);
 ```
 
 ### State Management
@@ -405,6 +537,22 @@ export const useUIStore = create<UIStore>((set) => ({
   sidebarOpen: true,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
 }));
+
+### User Feedback & Notifications
+- **Mandatory Usage**: ALL user alerts, success messages, and warnings MUST use the toast system.
+- **Do Not Use**: Native `alert()`, `confirm()`, or custom modal alerts for transient feedback.
+
+```typescript
+import { showSuccess, showError, showWarning } from '@/utils/toast.utils';
+
+// ✅ Good
+showSuccess('Job created successfully');
+showWarning('Unsaved changes will be lost');
+
+// ❌ Bad
+alert('Success!');
+if (confirm('Are you sure?')) { ... } // Use custom UI or toast patterns instead
+```
 ```
 
 ---
@@ -514,7 +662,7 @@ Modules can extend the core platform UI through `manifest.json`.
 ```typescript
 // modules/my-module/src/index.ts
 import type { FastifyPluginAsync } from 'fastify';
-import type { JobContext } from '@nxforge/backend/types/job.types';
+import type { ModuleContext, JobContext } from '@nxforge/shared';
 
 // Job handler - receives full context with services
 export async function handleMyJob(context: JobContext): Promise<void> {
@@ -599,6 +747,12 @@ export const myModuleApi = {
    ```typescript
    // BAD - ModuleStatus already exists in $Enums
    enum ModuleStatus { ENABLED = 'ENABLED', ... }
+   
+   // BAD - ModuleContext should come from @nxforge/shared
+   interface ModuleContext {
+     module: { id: string; name: string; version: string; };
+     services: { prisma: PrismaClient; logger: FastifyBaseLogger; };
+   }
    ```
 
 5. **Use `as any`**
@@ -622,13 +776,26 @@ export const myModuleApi = {
    // Use the module's own migrations directory
    ```
 
+8. **Use raw SQL for simple CRUD**
+   ```typescript
+   // BAD - Use Prisma for simple operations
+   const doc = await prisma.$queryRaw`INSERT INTO documents (title) VALUES (${title})`;
+   
+   // GOOD
+   const doc = await prisma.document.create({ data: { title } });
+   ```
+
 ### ✅ DO:
 
-1. **Check existing services first**
-2. **Use JobContext services in job handlers**
-3. **Export Fastify plugin from module entry**
-4. **Use Prisma types from `@prisma/client`**
-5. **Follow existing patterns in codebase**
+1. **Import types from @nxforge/shared**
+   ```typescript
+   import type { ModuleContext, BrowserModuleContext, JobContext } from '@nxforge/shared';
+   ```
+2. **Check existing services first**
+3. **Use JobContext services in job handlers**
+4. **Export Fastify plugin from module entry**
+5. **Use Prisma for simple CRUD, raw SQL for complex queries**
+6. **Follow existing patterns in codebase**
 
 ---
 

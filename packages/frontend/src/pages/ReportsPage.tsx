@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Download, Calendar } from 'lucide-react';
 import { consumptionApi } from '../api/consumption';
+import { PageHeader, Card, Button, EmptyState, LoadingState } from '../components/ui';
 
 export default function ReportsPage() {
   // Fetch monthly summary
@@ -53,9 +54,7 @@ export default function ReportsPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-gray-600 dark:text-gray-400">Loading reports...</div>
-        </div>
+        <LoadingState text="Loading reports..." />
       </div>
     );
   }
@@ -63,38 +62,37 @@ export default function ReportsPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Consumption Reports
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400 flex items-center gap-2">
+      <PageHeader
+        title="Consumption Reports"
+        description={(
+          <span className="flex items-center gap-2">
             <Calendar size={16} />
             {currentMonth}
-          </p>
-        </div>
-        <button
-          onClick={handleExportCSV}
-          disabled={monthlyData.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download size={18} />
-          Export CSV
-        </button>
-      </div>
+          </span>
+        ) as any}
+        actions={
+          <Button
+            onClick={handleExportCSV}
+            disabled={monthlyData.length === 0}
+            leftIcon={<Download size={18} />}
+          >
+            Export CSV
+          </Button>
+        }
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
             Total Endpoints
           </div>
           <div className="text-3xl font-bold text-gray-900 dark:text-white">
             {monthlyData.length}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
             Total Consumed This Month
           </div>
@@ -102,9 +100,9 @@ export default function ReportsPage() {
             {totalConsumed.toFixed(2)}
             <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">kWh</span>
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
             Current Total
           </div>
@@ -112,21 +110,17 @@ export default function ReportsPage() {
             {totalCurrent.toFixed(2)}
             <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">kWh</span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Reports Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <Card noPadding className="overflow-hidden">
         {monthlyData.length === 0 ? (
-          <div className="p-12 text-center">
-            <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-              No consumption data
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              No consumption readings available for this month
-            </p>
-          </div>
+          <EmptyState
+            icon={<FileText size={48} />}
+            title="No consumption data"
+            description="No consumption readings available for this month"
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -223,7 +217,8 @@ export default function ReportsPage() {
             </table>
           </div>
         )}
-      </div>
+
+      </Card>
 
       {/* Billing Note */}
       {monthlyData.length > 0 && (

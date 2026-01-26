@@ -10,8 +10,10 @@ import { env } from './config/env';
 import { logger } from './config/logger';
 import { authRoutes } from './routes/auth.routes';
 import { contributionsRoutes } from './routes/contributions.routes';
+import { monitoringRoutes } from './routes/monitoring.routes';
 import { prisma } from './lib/prisma';
 import { browserService } from './services/browser.service';
+import { eventBusService } from './services/event-bus.service';
 import { ModuleLoaderService } from './services/module-loader.service';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.middleware';
 
@@ -35,6 +37,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Decorate app with services for modules
   app.decorate('prisma', prisma);
   app.decorate('browserService', browserService);
+  app.decorate('eventBus', eventBusService);
 
   // CORS configuration with origin validation
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -271,6 +274,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       app.log.error(error, 'Failed to load/register dashboard routes');
       throw error;
     }
+
+    // Register monitoring routes (Core)
+    await instance.register(monitoringRoutes, { prefix: '/monitoring' });
 
   }, { prefix: '/api/v1' });
 

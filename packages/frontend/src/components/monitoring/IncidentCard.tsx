@@ -167,7 +167,7 @@ export function IncidentCard({
                                             {alert.source}
                                         </span>
                                         <span className="text-gray-400">
-                                            {alert.timestamp.toLocaleTimeString()}
+                                            {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString() : '—'}
                                         </span>
                                     </div>
                                     <p className="text-gray-800 dark:text-gray-200">{alert.message}</p>

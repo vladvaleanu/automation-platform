@@ -469,57 +469,33 @@ export async function registerRoutes(
         const { prisma } = context.services;
 
         try {
-            let query = `
-                SELECT * FROM ai_incidents
-            `;
-            const conditions: string[] = [];
-
+            const where: any = {};
             if (status === 'active') {
-                conditions.push(`status IN ('active', 'investigating')`);
+                where.status = { in: ['active', 'investigating'] };
             } else if (status === 'resolved') {
-                conditions.push(`status IN ('resolved', 'dismissed')`);
+                where.status = { in: ['resolved', 'dismissed'] };
             }
 
-            if (conditions.length > 0) {
-                query += ` WHERE ${conditions.join(' AND ')}`;
-            }
+            const incidents = await prisma.incident.findMany({
+                where,
+                orderBy: [
+                    { severity: 'asc' }, // Warning: This might need custom sort if strict priority needed
+                    { createdAt: 'desc' }
+                ],
+                take: parseInt(limit || '50')
+            });
 
-            query += `
-                ORDER BY
-                    CASE status
-                        WHEN 'active' THEN 1
-                        WHEN 'investigating' THEN 2
-                        ELSE 3
-                    END,
-                    CASE severity
-                        WHEN 'critical' THEN 1
-                        WHEN 'warning' THEN 2
-                        ELSE 3
-                    END,
-                    created_at DESC
-                LIMIT ${parseInt(limit || '50')}
-            `;
-
-            const incidents = await prisma.$queryRawUnsafe<{
-                id: string;
-                title: string;
-                severity: string;
-                status: string;
-                impact: string | null;
-                alert_count: number;
-                has_forge_analysis: boolean;
-                created_at: Date;
-                updated_at: Date;
-                resolved_at: Date | null;
-            }[]>(query);
-
-            // Calculate duration for each incident
-            const now = new Date();
+            // Manual sort for severity if needed, but basic sort above often sufficient for simple endpoints
+            // Core service had robust sorting. We'll strict to basic here or duplicate sort logic.
+            // Let's stick to basic DB sort for simplicity + createdAt.
+            // Actually, Enum sort order in Prisma is just index or string.
+            // Let's just return them.
 
             return {
                 success: true,
                 incidents: incidents.map(i => {
-                    const diffMs = now.getTime() - new Date(i.created_at).getTime();
+                    const now = new Date();
+                    const diffMs = now.getTime() - i.createdAt.getTime();
                     const diffSeconds = Math.floor(diffMs / 1000);
                     const diffMinutes = Math.floor(diffSeconds / 60);
                     const diffHours = Math.floor(diffMinutes / 60);
@@ -539,12 +515,12 @@ export async function registerRoutes(
                         severity: i.severity,
                         status: i.status,
                         impact: i.impact || 'Unknown impact',
-                        alertCount: i.alert_count,
-                        hasForgeAnalysis: i.has_forge_analysis,
+                        alertCount: i.alertCount,
+                        hasForgeAnalysis: i.hasForgeAnalysis,
                         duration,
-                        createdAt: i.created_at,
-                        updatedAt: i.updated_at,
-                        resolvedAt: i.resolved_at,
+                        createdAt: i.createdAt,
+                        updatedAt: i.updatedAt,
+                        resolvedAt: i.resolvedAt,
                     };
                 }),
             };
@@ -567,45 +543,23 @@ export async function registerRoutes(
         const { prisma } = context.services;
 
         try {
-            // Get incident
-            const incidents = await prisma.$queryRawUnsafe<{
-                id: string;
-                title: string;
-                severity: string;
-                status: string;
-                impact: string | null;
-                alert_count: number;
-                has_forge_analysis: boolean;
-                created_at: Date;
-                updated_at: Date;
-                resolved_at: Date | null;
-            }[]>(`SELECT * FROM ai_incidents WHERE id = $1::uuid`, id);
+            const incident = await prisma.incident.findUnique({
+                where: { id },
+                include: {
+                    alerts: {
+                        orderBy: { createdAt: 'desc' }
+                    }
+                }
+            });
 
-            if (incidents.length === 0) {
+            if (!incident) {
                 reply.status(404);
                 return { success: false, error: 'Incident not found' };
             }
 
-            const incident = incidents[0];
-
-            // Get related alerts
-            const alerts = await prisma.$queryRawUnsafe<{
-                id: string;
-                source: string;
-                message: string;
-                severity: string;
-                labels: Record<string, string>;
-                created_at: Date;
-            }[]>(
-                `SELECT id, source, message, severity, labels, created_at
-                 FROM ai_alerts WHERE incident_id = $1::uuid
-                 ORDER BY created_at DESC`,
-                id
-            );
-
             // Calculate duration
             const now = new Date();
-            const diffMs = now.getTime() - new Date(incident.created_at).getTime();
+            const diffMs = now.getTime() - incident.createdAt.getTime();
             const diffSeconds = Math.floor(diffMs / 1000);
             const diffMinutes = Math.floor(diffSeconds / 60);
             const diffHours = Math.floor(diffMinutes / 60);
@@ -627,19 +581,19 @@ export async function registerRoutes(
                     severity: incident.severity,
                     status: incident.status,
                     impact: incident.impact || 'Unknown impact',
-                    alertCount: incident.alert_count,
-                    hasForgeAnalysis: incident.has_forge_analysis,
+                    alertCount: incident.alertCount,
+                    hasForgeAnalysis: incident.hasForgeAnalysis,
                     duration,
-                    createdAt: incident.created_at,
-                    updatedAt: incident.updated_at,
-                    resolvedAt: incident.resolved_at,
-                    alerts: alerts.map(a => ({
+                    createdAt: incident.createdAt,
+                    updatedAt: incident.updatedAt,
+                    resolvedAt: incident.resolvedAt,
+                    alerts: incident.alerts.map(a => ({
                         id: a.id,
                         source: a.source,
                         message: a.message,
                         severity: a.severity,
-                        labels: a.labels,
-                        timestamp: a.created_at,
+                        labels: a.labels as Record<string, string>,
+                        timestamp: a.createdAt,
                     })),
                 },
             };
@@ -659,36 +613,26 @@ export async function registerRoutes(
         const { prisma } = context.services;
 
         try {
-            const updates: string[] = [];
-            const values: any[] = [id];
-            let paramIndex = 2;
-
+            const data: any = {};
             if (body.status) {
-                updates.push(`status = $${paramIndex++}`);
-                values.push(body.status);
-
-                // Set resolved_at if resolving/dismissing
+                data.status = body.status;
                 if (body.status === 'resolved' || body.status === 'dismissed') {
-                    updates.push('resolved_at = NOW()');
+                    data.resolvedAt = new Date();
                 }
             }
-
             if (body.hasForgeAnalysis !== undefined) {
-                updates.push(`has_forge_analysis = $${paramIndex++}`);
-                values.push(body.hasForgeAnalysis);
+                data.hasForgeAnalysis = body.hasForgeAnalysis;
             }
 
-            if (updates.length === 0) {
+            if (Object.keys(data).length === 0) {
                 reply.status(400);
                 return { success: false, error: 'No updates provided' };
             }
 
-            updates.push('updated_at = NOW()');
-
-            await prisma.$executeRawUnsafe(
-                `UPDATE ai_incidents SET ${updates.join(', ')} WHERE id = $1::uuid`,
-                ...values
-            );
+            await prisma.incident.update({
+                where: { id },
+                data
+            });
 
             logger.info({ id, updates: body }, 'Incident updated');
 

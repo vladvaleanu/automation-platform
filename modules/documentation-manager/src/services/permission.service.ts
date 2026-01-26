@@ -26,7 +26,7 @@ export class PermissionService {
     // Check if user has category-level permission
     const permission = await this.prisma.$queryRaw<Array<{ permission: string }>>`
       SELECT permission FROM document_category_permissions
-      WHERE category_id = ${categoryId}::uuid
+      WHERE category_id = ${categoryId}
       AND user_id = ${userId}
     `;
 
@@ -79,7 +79,7 @@ export class PermissionService {
     // Check document-level permissions
     const docPermission = await this.prisma.$queryRaw<Array<{ permission: string }>>`
       SELECT permission FROM document_permissions
-      WHERE document_id = ${documentId}::uuid
+      WHERE document_id = ${documentId}
       AND user_id = ${userId}
     `;
 
@@ -90,7 +90,7 @@ export class PermissionService {
 
     // If no document-level permission, check if user is the author
     const document = await this.prisma.$queryRaw<Array<{ author_id: string; category_id: string }>>`
-      SELECT author_id, category_id FROM documents WHERE id = ${documentId}::uuid
+      SELECT author_id, category_id FROM documents WHERE id = ${documentId}
     `;
 
     if (document.length === 0) {
@@ -126,7 +126,7 @@ export class PermissionService {
   ): Promise<void> {
     await this.prisma.$executeRaw`
       INSERT INTO document_category_permissions (category_id, user_id, permission)
-      VALUES (${categoryId}::uuid, ${userId}, ${permission}::document_permission_level)
+      VALUES (${categoryId}, ${userId}, ${permission}::document_permission_level)
       ON CONFLICT (category_id, user_id)
       DO UPDATE SET permission = ${permission}::document_permission_level
     `;
@@ -142,7 +142,7 @@ export class PermissionService {
   ): Promise<void> {
     await this.prisma.$executeRaw`
       INSERT INTO document_permissions (document_id, user_id, permission)
-      VALUES (${documentId}::uuid, ${userId}, ${permission}::document_permission_level)
+      VALUES (${documentId}, ${userId}, ${permission}::document_permission_level)
       ON CONFLICT (document_id, user_id)
       DO UPDATE SET permission = ${permission}::document_permission_level
     `;
@@ -154,7 +154,7 @@ export class PermissionService {
   async revokeCategoryPermission(categoryId: string, userId: string): Promise<void> {
     await this.prisma.$executeRaw`
       DELETE FROM document_category_permissions
-      WHERE category_id = ${categoryId}::uuid AND user_id = ${userId}
+      WHERE category_id = ${categoryId} AND user_id = ${userId}
     `;
   }
 
@@ -164,7 +164,7 @@ export class PermissionService {
   async revokeDocumentPermission(documentId: string, userId: string): Promise<void> {
     await this.prisma.$executeRaw`
       DELETE FROM document_permissions
-      WHERE document_id = ${documentId}::uuid AND user_id = ${userId}
+      WHERE document_id = ${documentId} AND user_id = ${userId}
     `;
   }
 }

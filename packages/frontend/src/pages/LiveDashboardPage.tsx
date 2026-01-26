@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, Zap, Power, AlertCircle } from 'lucide-react';
 import { consumptionApi } from '../api/consumption';
+import { PageHeader, Card, Badge, EmptyState, LoadingState } from '../components/ui';
 
 export default function LiveDashboardPage() {
   // Fetch live dashboard data with auto-refresh every 30 seconds
@@ -15,16 +16,14 @@ export default function LiveDashboardPage() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const getStatusColor = (status: string) => {
+  const getStatusVariant = (status: string): 'success' | 'error' | 'neutral' => {
     switch (status) {
       case 'online':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
-      case 'offline':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return 'success';
       case 'error':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+        return 'error';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+        return 'neutral';
     }
   };
 
@@ -57,9 +56,9 @@ export default function LiveDashboardPage() {
   if (isLoading) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-gray-600 dark:text-gray-400">Loading dashboard...</div>
-        </div>
+        <Card>
+          <LoadingState text="Loading dashboard..." />
+        </Card>
       </div>
     );
   }
@@ -67,9 +66,13 @@ export default function LiveDashboardPage() {
   if (!data) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-gray-600 dark:text-gray-400">No data available</div>
-        </div>
+        <Card>
+          <EmptyState
+            icon={<Power size={48} />}
+            title="No data available"
+            description="Power consumption data will appear here once endpoints are configured."
+          />
+        </Card>
       </div>
     );
   }
@@ -77,18 +80,14 @@ export default function LiveDashboardPage() {
   return (
     <div className="p-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Live Power Monitoring
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Real-time power consumption across all endpoints
-        </p>
-      </div>
+      <PageHeader
+        title="Live Power Monitoring"
+        description="Real-time power consumption across all endpoints"
+      />
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
               Total Endpoints
@@ -98,9 +97,9 @@ export default function LiveDashboardPage() {
           <div className="text-3xl font-bold text-gray-900 dark:text-white">
             {data.summary.totalEndpoints}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
               Active Now
@@ -110,9 +109,9 @@ export default function LiveDashboardPage() {
           <div className="text-3xl font-bold text-green-600 dark:text-green-400">
             {data.summary.activeEndpoints}
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
               Total Consumption
@@ -123,9 +122,9 @@ export default function LiveDashboardPage() {
             {data.summary.totalKwh.toFixed(1)}
             <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">kWh</span>
           </div>
-        </div>
+        </Card>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <Card>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
               This Month
@@ -136,11 +135,11 @@ export default function LiveDashboardPage() {
             {data.summary.monthlyConsumption.toFixed(1)}
             <span className="text-lg text-gray-600 dark:text-gray-400 ml-1">kWh</span>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Endpoints Grid */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      <Card noPadding>
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Endpoint Status
@@ -148,12 +147,10 @@ export default function LiveDashboardPage() {
         </div>
 
         {data.endpoints.length === 0 ? (
-          <div className="p-12 text-center">
-            <Power size={48} className="mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 dark:text-gray-400">
-              No endpoints configured yet
-            </p>
-          </div>
+          <EmptyState
+            icon={<Power size={48} />}
+            title="No endpoints configured yet"
+          />
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {data.endpoints.map((endpoint) => (
@@ -168,14 +165,17 @@ export default function LiveDashboardPage() {
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white">
                         {endpoint.name}
                       </h3>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(endpoint.status)}`}>
-                        {getStatusIcon(endpoint.status)}
+                      <Badge
+                        variant={getStatusVariant(endpoint.status)}
+                        size="sm"
+                        icon={getStatusIcon(endpoint.status)}
+                      >
                         {endpoint.status}
-                      </span>
+                      </Badge>
                       {!endpoint.enabled && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                        <Badge variant="neutral" size="sm">
                           Disabled
-                        </span>
+                        </Badge>
                       )}
                     </div>
 
@@ -257,7 +257,7 @@ export default function LiveDashboardPage() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Auto-refresh indicator */}
       <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">

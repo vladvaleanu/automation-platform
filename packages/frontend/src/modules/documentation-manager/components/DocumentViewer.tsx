@@ -13,7 +13,7 @@ import {
   EyeIcon,
   DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline';
-import { documentsApi, type Document, type DocumentVersion } from '../api/docs.api';
+import { documentsApi, type Document } from '../api/docs.api';
 import { format } from 'date-fns';
 
 interface DocumentViewerProps {

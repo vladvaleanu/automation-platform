@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { ForgeSettings, DEFAULT_FORGE_SETTINGS } from '../types/forge-settings';
 
 interface ForgeSettingsContextType {

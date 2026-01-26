@@ -6,12 +6,12 @@
  * Phase 5: Alert Rules Configuration + Advanced Logic + Escalation
  */
 
-import { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyBaseLogger } from 'fastify';
 import { registerRoutes } from './routes/index.js';
 import { AlertBatcherService } from './services/alert-batcher.service.js';
 import { AlertRuleService } from './services/alert-rule.service.js';
 import { EscalationService } from './services/escalation.service.js';
-import type { ModuleContext } from './types/index.js';
+import type { ModuleContext } from '@nxforge/shared';
 import type { RuleEvaluationEvent } from './types/alert.types.js';
 
 // Singleton services (exported for route access)
@@ -26,7 +26,7 @@ async function evaluateEventAgainstRules(
     event: RuleEvaluationEvent,
     alertRuleService: AlertRuleService,
     alertBatcher: AlertBatcherService,
-    logger: any
+    logger: FastifyBaseLogger
 ): Promise<void> {
     try {
         const matchingRules = await alertRuleService.evaluateEvent(event);
@@ -60,8 +60,7 @@ const plugin: FastifyPluginAsync = async (app) => {
     app.log.info('[ai-copilot] Forge module initializing...');
 
     // Get services from app decoration (provided by core)
-    const prisma = (app as any).prisma;
-    const eventBus = (app as any).eventBus;
+    const { prisma, eventBus } = app;
 
     if (!prisma) {
         app.log.error('Prisma instance not found on app decoration');
@@ -77,12 +76,12 @@ const plugin: FastifyPluginAsync = async (app) => {
         },
         services: {
             prisma,
-            logger: app.log as any,
+            logger: app.log,
         },
     };
 
     // Initialize AlertBatcherService
-    alertBatcher = new AlertBatcherService(prisma, app.log as any, {
+    alertBatcher = new AlertBatcherService(prisma, app.log, {
         batchWindowSeconds: 30,
         minAlertsForIncident: 1,
     });
@@ -90,11 +89,11 @@ const plugin: FastifyPluginAsync = async (app) => {
     app.log.info('[ai-copilot] AlertBatcherService started');
 
     // Initialize AlertRuleService
-    alertRuleService = new AlertRuleService(prisma, app.log as any);
+    alertRuleService = new AlertRuleService(prisma, app.log);
     app.log.info('[ai-copilot] AlertRuleService initialized');
 
     // Initialize EscalationService
-    escalationService = new EscalationService(prisma, app.log as any, {
+    escalationService = new EscalationService(prisma, app.log, {
         checkIntervalSeconds: 60, // Check every minute
     });
     escalationService.start();

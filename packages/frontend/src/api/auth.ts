@@ -2,7 +2,7 @@
  * Authentication API endpoints
  */
 
-import apiClient, { ApiResponse } from './client';
+import apiClient, { ApiSuccessResponse } from './client';
 
 export interface LoginCredentials {
   email: string;
@@ -66,43 +66,44 @@ export interface ChangePasswordData {
 }
 
 export const authApi = {
-  async login(credentials: LoginCredentials): Promise<ApiResponse<AuthTokens>> {
+  async login(credentials: LoginCredentials): Promise<ApiSuccessResponse<AuthTokens>> {
     return apiClient.post<AuthTokens>('/auth/login', credentials);
   },
 
-  async register(data: RegisterData): Promise<ApiResponse<{ userId: string }>> {
+  async register(data: RegisterData): Promise<ApiSuccessResponse<{ userId: string }>> {
     return apiClient.post<{ userId: string }>('/auth/register', data);
   },
 
-  async getCurrentUser(): Promise<ApiResponse<{ user: User }>> {
+  async getCurrentUser(): Promise<ApiSuccessResponse<{ user: User }>> {
     return apiClient.get<{ user: User }>('/auth/me');
   },
 
-  async logout(refreshToken: string): Promise<ApiResponse<{ message: string }>> {
+  async logout(refreshToken: string): Promise<ApiSuccessResponse<{ message: string }>> {
     return apiClient.post<{ message: string }>('/auth/logout', { refreshToken });
   },
 
-  async refreshToken(refreshToken: string): Promise<ApiResponse<AuthTokens>> {
+  async refreshToken(refreshToken: string): Promise<ApiSuccessResponse<AuthTokens>> {
     return apiClient.post<AuthTokens>('/auth/refresh', { refreshToken });
   },
 
-  async getProfile(): Promise<ApiResponse<UserProfile>> {
+  async getProfile(): Promise<ApiSuccessResponse<UserProfile>> {
     return apiClient.get<UserProfile>('/auth/profile');
   },
 
-  async updateProfile(data: UpdateProfileData): Promise<ApiResponse<{ user: UserProfile }>> {
+  async updateProfile(data: UpdateProfileData): Promise<ApiSuccessResponse<{ user: UserProfile }>> {
     return apiClient.put<{ user: UserProfile }>('/auth/profile', data);
   },
 
-  async changePassword(data: ChangePasswordData): Promise<ApiResponse<{ message: string }>> {
+  async changePassword(data: ChangePasswordData): Promise<ApiSuccessResponse<{ message: string }>> {
     return apiClient.put<{ message: string }>('/auth/password', data);
   },
 
-  async revokeSession(sessionId: string): Promise<ApiResponse<{ message: string }>> {
+  async revokeSession(sessionId: string): Promise<ApiSuccessResponse<{ message: string }>> {
     return apiClient.delete<{ message: string }>(`/auth/sessions/${sessionId}`);
   },
 
-  async revokeOtherSessions(refreshToken: string): Promise<ApiResponse<{ message: string }>> {
+  async revokeOtherSessions(refreshToken: string): Promise<ApiSuccessResponse<{ message: string }>> {
     return apiClient.delete<{ message: string }>('/auth/sessions', { refreshToken });
   },
 };
+

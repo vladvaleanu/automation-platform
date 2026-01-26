@@ -10,6 +10,7 @@ import { DocumentViewer } from '../components/DocumentViewer';
 import { DocumentEditor } from '../components/DocumentEditor';
 import { MediaGallery } from '../components/MediaGallery';
 import { ErrorBoundary } from '../../../components/ErrorBoundary';
+import { PageHeader, Button, EmptyState } from '../../../components/ui';
 import type { Document, DocumentListItem } from '../api/docs.api';
 
 type ViewMode = 'documents' | 'media';
@@ -68,26 +69,26 @@ export function DocumentationPage() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col p-6">
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              Knowledge Base
-            </h1>
-            {viewMode === 'documents' && (
-              <button
+        <PageHeader
+          title="Knowledge Base"
+          description="Manage your documentation and media assets"
+          actions={
+            viewMode === 'documents' && (
+              <Button
                 onClick={handleCreateDocument}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                variant="primary"
+                leftIcon={<PlusIcon className="h-4 w-4" />}
+                className="flex items-center gap-2"
               >
-                <PlusIcon className="h-4 w-4" />
                 New Document
-              </button>
-            )}
-          </div>
-
+              </Button>
+            )
+          }
+        >
           {/* View Mode Tabs */}
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 mt-4 w-fit">
             <button
               onClick={() => setViewMode('documents')}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${viewMode === 'documents'
@@ -109,7 +110,7 @@ export function DocumentationPage() {
               Media
             </button>
           </div>
-        </div>
+        </PageHeader>
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden">
@@ -122,11 +123,12 @@ export function DocumentationPage() {
                 />
               </ErrorBoundary>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <div className="text-center">
-                  <p className="text-lg mb-2">No document selected</p>
-                  <p className="text-sm">Select a document from the sidebar or create a new one</p>
-                </div>
+              <div className="flex h-full items-center justify-center">
+                <EmptyState
+                  title="No document selected"
+                  description="Select a document from the sidebar or create a new one"
+                  icon={<DocumentTextIcon className="h-12 w-12 text-gray-400" />}
+                />
               </div>
             )
           ) : (

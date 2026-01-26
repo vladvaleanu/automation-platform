@@ -10,6 +10,7 @@ import { apiClient } from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../utils/error.utils';
 import { showError, showSuccess } from '../utils/toast.utils';
+import { PageHeader, Card, Button, Select, Input, Textarea, FormField, LoadingState } from '../components/ui';
 
 interface Module {
   id: string;
@@ -74,11 +75,7 @@ export default function CreateJobPage() {
 
   // Show loading state while auth is being verified
   if (authLoading) {
-    return (
-      <div className="p-8 flex justify-center items-center">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
-      </div>
-    );
+    return <LoadingState text="Verifying authentication..." />;
   }
 
   // Create job mutation
@@ -100,9 +97,9 @@ export default function CreateJobPage() {
     // Transform jobs object to array for UI
     const handlers = module?.manifest?.jobs
       ? Object.entries(module.manifest.jobs).map(([key, job]) => ({
-          ...job,
-          key, // Keep the job key for reference
-        }))
+        ...job,
+        key, // Keep the job key for reference
+      }))
       : [];
 
     setSelectedModuleHandlers(handlers);
@@ -148,15 +145,13 @@ export default function CreateJobPage() {
 
   return (
     <div className="p-8">
-    
+
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Create Job</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Create a new automation job
-          </p>
-        </div>
+        <PageHeader
+          title="Create Job"
+          description="Create a new automation job"
+        />
 
         {/* No Modules Warning */}
         {!modulesLoading && modules.length === 0 && (
@@ -181,260 +176,228 @@ export default function CreateJobPage() {
 
         {/* Form */}
         {modules.length > 0 && (
-          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
-            {/* Module Selection */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Module <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.moduleId}
-                onChange={(e) => handleModuleChange(e.target.value)}
-                required
-                disabled={modulesLoading}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Select a module...</option>
-                {modules.map((module) => (
-                  <option key={module.id} value={module.id}>
-                    {module.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-          {/* Job Type Selection */}
-          {formData.moduleId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Job Type <span className="text-red-500">*</span>
-              </label>
-              {selectedModuleHandlers.length > 0 ? (
-                <>
-                  <select
-                    value={formData.handler}
-                    onChange={(e) => handleHandlerChange(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Select a job type...</option>
-                    {selectedModuleHandlers.map((job, idx) => (
-                      <option key={idx} value={job.handler}>
-                        {job.name}
-                      </option>
-                    ))}
-                  </select>
-                  {formData.handler && (
-                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
-                        {selectedModuleHandlers.find(j => j.handler === formData.handler)?.description || 'No description available'}
-                      </p>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    value={formData.handler}
-                    onChange={(e) => setFormData({ ...formData, handler: e.target.value })}
-                    placeholder="e.g., jobs/monitor.js"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    This module doesn't have predefined jobs. Enter the path to your job handler file.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Job Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Job Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="My Automation Job"
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="What does this job do?"
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          {/* Schedule */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Schedule (Cron Expression)
-            </label>
-            <div className="space-y-2">
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={formData.schedule}
-                  onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
-                  placeholder="* * * * * (or leave empty for manual only)"
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCronBuilder(!showCronBuilder)}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+          <form onSubmit={handleSubmit}>
+            <Card className="space-y-6">
+              {/* Module Selection */}
+              <FormField label="Module" required>
+                <Select
+                  value={formData.moduleId}
+                  onChange={(e) => handleModuleChange(e.target.value)}
+                  required
+                  disabled={modulesLoading}
                 >
-                  {showCronBuilder ? 'Hide' : 'Presets'}
-                </button>
-              </div>
-              {showCronBuilder && (
-                <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
-                  {cronPresets.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, schedule: preset.value })}
-                      className="px-3 py-2 text-sm bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600 text-left"
-                    >
-                      <div className="font-medium">{preset.label}</div>
-                      {preset.value && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                          {preset.value}
+                  <option value="">Select a module...</option>
+                  {modules.map((module) => (
+                    <option key={module.id} value={module.id}>
+                      {module.name}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+
+              {/* Job Type Selection */}
+              {formData.moduleId && (
+                <FormField label="Job Type" required>
+                  {selectedModuleHandlers.length > 0 ? (
+                    <>
+                      <Select
+                        value={formData.handler}
+                        onChange={(e) => handleHandlerChange(e.target.value)}
+                        required
+                      >
+                        <option value="">Select a job type...</option>
+                        {selectedModuleHandlers.map((job, idx) => (
+                          <option key={idx} value={job.handler}>
+                            {job.name}
+                          </option>
+                        ))}
+                      </Select>
+                      {formData.handler && (
+                        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            {selectedModuleHandlers.find(j => j.handler === formData.handler)?.description || 'No description available'}
+                          </p>
                         </div>
                       )}
-                    </button>
-                  ))}
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        type="text"
+                        value={formData.handler}
+                        onChange={(e) => setFormData({ ...formData, handler: e.target.value })}
+                        placeholder="e.g., jobs/monitor.js"
+                        required
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        This module doesn't have predefined jobs. Enter the path to your job handler file.
+                      </p>
+                    </>
+                  )}
+                </FormField>
+              )}
+
+              {/* Job Name */}
+              <FormField label="Job Name" required>
+                <Input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="My Automation Job"
+                  required
+                />
+              </FormField>
+
+              {/* Description */}
+              <FormField label="Description">
+                <Textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="What does this job do?"
+                  rows={3}
+                />
+              </FormField>
+
+              {/* Schedule */}
+              <FormField
+                label="Schedule (Cron Expression)"
+                helpText="Leave empty for manual execution only. Format: minute hour day month weekday"
+              >
+                <div className="space-y-2">
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      value={formData.schedule}
+                      onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                      placeholder="* * * * * (or leave empty for manual only)"
+                      className="font-mono"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => setShowCronBuilder(!showCronBuilder)}
+                      variant="secondary"
+                    >
+                      {showCronBuilder ? 'Hide' : 'Presets'}
+                    </Button>
+                  </div>
+                  {showCronBuilder && (
+                    <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-md">
+                      {cronPresets.map((preset) => (
+                        <Button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, schedule: preset.value })}
+                          variant="secondary"
+                          size="sm"
+                          className="text-left justify-start"
+                        >
+                          <div>
+                            <div className="font-medium">{preset.label}</div>
+                            {preset.value && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                {preset.value}
+                              </div>
+                            )}
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </FormField>
+
+              {/* Advanced Settings Toggle */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                >
+                  <span>{showAdvanced ? '▼' : '▶'}</span>
+                  <span className="ml-2">Advanced Settings</span>
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(optional)</span>
+                </button>
+              </div>
+
+              {/* Advanced Settings */}
+              {showAdvanced && (
+                <div className="space-y-6 pl-4 border-l-2 border-blue-500">
+                  {/* Timeout */}
+                  <FormField label="Timeout" helpText="Maximum time the job can run (default: 300 seconds / 5 minutes)">
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="number"
+                        value={formData.timeout / 1000}
+                        onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) * 1000 })}
+                        min="1"
+                        step="1"
+                        className="w-32"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">seconds</span>
+                    </div>
+                  </FormField>
+
+                  {/* Retries */}
+                  <FormField label="Retry Attempts" helpText="How many times to retry if the job fails (0-10, default: 3)">
+                    <Input
+                      type="number"
+                      value={formData.retries}
+                      onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) })}
+                      min="0"
+                      max="10"
+                      className="w-32"
+                    />
+                  </FormField>
+
+                  {/* Config */}
+                  <FormField label="Custom Configuration (JSON)" helpText="Job-specific configuration in JSON format (optional)">
+                    <Textarea
+                      value={formData.config}
+                      onChange={(e) => setFormData({ ...formData, config: e.target.value })}
+                      placeholder='{"apiKey": "xxx", "endpoint": "https://..."}&#10;&#10;Optional: Add job-specific settings here'
+                      rows={6}
+                      className="font-mono text-sm"
+                    />
+                  </FormField>
                 </div>
               )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Leave empty for manual execution only. Format: minute hour day month weekday
-            </p>
-          </div>
 
-          {/* Advanced Settings Toggle */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
-            >
-              <span>{showAdvanced ? '▼' : '▶'}</span>
-              <span className="ml-2">Advanced Settings</span>
-              <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(optional)</span>
-            </button>
-          </div>
-
-          {/* Advanced Settings */}
-          {showAdvanced && (
-            <div className="space-y-6 pl-4 border-l-2 border-blue-500">
-              {/* Timeout */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Timeout
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={formData.timeout / 1000}
-                    onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) * 1000 })}
-                    min="1"
-                    step="1"
-                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">seconds</span>
-                </div>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Maximum time the job can run (default: 300 seconds / 5 minutes)
-                </p>
-              </div>
-
-              {/* Retries */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Retry Attempts
-                </label>
+              {/* Enabled */}
+              <div className="flex items-center pt-4">
                 <input
-                  type="number"
-                  value={formData.retries}
-                  onChange={(e) => setFormData({ ...formData, retries: parseInt(e.target.value) })}
-                  min="0"
-                  max="10"
-                  className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  type="checkbox"
+                  id="enabled"
+                  checked={formData.enabled}
+                  onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  How many times to retry if the job fails (0-10, default: 3)
-                </p>
-              </div>
-
-              {/* Config */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Custom Configuration (JSON)
+                <label htmlFor="enabled" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  Enable and start scheduling immediately after creation
                 </label>
-                <textarea
-                  value={formData.config}
-                  onChange={(e) => setFormData({ ...formData, config: e.target.value })}
-                  placeholder='{"apiKey": "xxx", "endpoint": "https://..."}&#10;&#10;Optional: Add job-specific settings here'
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Job-specific configuration in JSON format (optional)
-                </p>
               </div>
-            </div>
-          )}
 
-          {/* Enabled */}
-          <div className="flex items-center pt-4">
-            <input
-              type="checkbox"
-              id="enabled"
-              checked={formData.enabled}
-              onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-            />
-            <label htmlFor="enabled" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-              Enable and start scheduling immediately after creation
-            </label>
-          </div>
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => navigate('/jobs')}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={createJobMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {createJobMutation.isPending ? 'Creating...' : 'Create Job'}
-              </button>
-            </div>
+              {/* Actions */}
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <Button
+                  type="button"
+                  onClick={() => navigate('/jobs')}
+                  variant="secondary"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createJobMutation.isPending}
+                  isLoading={createJobMutation.isPending}
+                >
+                  Create Job
+                </Button>
+              </div>
+            </Card>
           </form>
         )}
       </div>
-    
+
     </div>
   );
 }

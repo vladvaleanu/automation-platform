@@ -101,8 +101,9 @@ export default async function collectConsumption(context: JobContext): Promise<J
       failed: results.failed,
       errors: results.errors,
     };
-  } catch (error: any) {
-    logger.error(`[CollectConsumption] Job failed: ${error.message}`, { error });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ error }, `[CollectConsumption] Job failed: ${errorMessage}`);
     throw error;
   }
 }
@@ -225,18 +226,16 @@ async function processEndpoint(
     }
 
     results.successful++;
-  } catch (error: any) {
-    logger.error(`[CollectConsumption] Failed to scrape ${endpoint.name}: ${error.message}`, {
-      endpointId: endpoint.id,
-      error,
-    });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ endpointId: endpoint.id, error }, `[CollectConsumption] Failed to scrape ${endpoint.name}: ${errorMessage}`);
 
     // Emit error event for alert rules evaluation
     if (events) {
       await events.emit('alert.created', {
         source: 'consumption-monitor',
         type: 'error',
-        message: `Failed to collect data from ${endpoint.name}: ${error.message}`,
+        message: `Failed to collect data from ${endpoint.name}: ${errorMessage}`,
         severity: 'warning',
         labels: {
           endpointId: endpoint.id,
@@ -253,7 +252,7 @@ async function processEndpoint(
           endpointId: endpoint.id,
           timestamp: new Date(),
           success: false,
-          errorMessage: error.message,
+          errorMessage,
           rawData: {
             scrapedAt: new Date().toISOString(),
             durationMs: Date.now() - startTime,
@@ -267,7 +266,7 @@ async function processEndpoint(
     results.failed++;
     results.errors.push({
       endpoint: endpoint.name,
-      error: error.message,
+      error: errorMessage,
     });
   }
 }

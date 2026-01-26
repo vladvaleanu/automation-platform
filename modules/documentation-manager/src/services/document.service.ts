@@ -42,35 +42,39 @@ export class DocumentService {
    * Create a new document
    */
   async createDocument(data: CreateDocumentData) {
-    // Check if document with same title already exists
-    const existing = await this.prisma.$queryRaw<Array<{ id: string; title: string }>>`
-      SELECT id, title FROM documents WHERE LOWER(title) = LOWER(${data.title}) LIMIT 1
-    `;
+    // Check if document with same title already exists (case-insensitive)
+    const existing = await this.prisma.document.findFirst({
+      where: {
+        title: { equals: data.title, mode: 'insensitive' },
+        deletedAt: null,
+      },
+      select: { id: true, title: true },
+    });
 
-    if (existing.length > 0) {
+    if (existing) {
       throw new Error(`A document with the title "${data.title}" already exists`);
     }
 
     const slug = this.generateSlug(data.title);
     const contentHtml = markdownService.renderToHtml(data.content);
 
-    const document = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      INSERT INTO documents (title, slug, content, content_html, excerpt, category_id, folder_id, author_id, status)
-      VALUES (
-        ${data.title},
-        ${slug},
-        ${data.content},
-        ${contentHtml},
-        ${this.generateExcerpt(data.content)},
-        ${data.categoryId}::uuid,
-        ${data.folderId || null}::uuid,
-        ${data.authorId},
-        ${data.status || 'DRAFT'}::document_status
-      )
-      RETURNING id
-    `;
+    // Create document using Prisma
+    const document = await this.prisma.document.create({
+      data: {
+        title: data.title,
+        slug,
+        content: data.content,
+        contentHtml,
+        excerpt: this.generateExcerpt(data.content),
+        categoryId: data.categoryId,
+        folderId: data.folderId || null,
+        authorId: data.authorId,
+        status: data.status || 'DRAFT',
+      },
+      select: { id: true },
+    });
 
-    const documentId = document[0].id;
+    const documentId = document.id;
 
     // Create initial version
     await this.versionService.createVersion(documentId, data.title, data.content, data.authorId, 'Initial version');
@@ -126,7 +130,7 @@ export class DocumentService {
       JOIN users u ON d.author_id = u.id
       LEFT JOIN document_tags dt ON d.id = dt.document_id
       LEFT JOIN tags t ON dt.tag_id = t.id
-      WHERE d.id = ${documentId}::uuid
+      WHERE d.id = ${documentId}
       GROUP BY d.id, c.id, c.name, c.icon, u.id, u.username, u.email
     `;
 
@@ -137,15 +141,16 @@ export class DocumentService {
    * Get document by slug
    */
   async getDocumentBySlug(slug: string) {
-    const documents = await this.prisma.$queryRaw<Array<{ id: string }>>`
-      SELECT id FROM documents WHERE slug = ${slug}
-    `;
+    const document = await this.prisma.document.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
 
-    if (documents.length === 0) {
+    if (!document) {
       return null;
     }
 
-    return this.getDocument(documents[0].id);
+    return this.getDocument(document.id);
   }
 
   /**
@@ -156,14 +161,17 @@ export class DocumentService {
     const values: any[] = [];
 
     if (data.title) {
-      // Check if another document with same title already exists
-      const existing = await this.prisma.$queryRaw<Array<{ id: string; title: string }>>`
-        SELECT id, title FROM documents
-        WHERE LOWER(title) = LOWER(${data.title}) AND id != ${documentId}::uuid
-        LIMIT 1
-      `;
+      // Check if another document with same title already exists (case-insensitive)
+      const existing = await this.prisma.document.findFirst({
+        where: {
+          title: { equals: data.title, mode: 'insensitive' },
+          id: { not: documentId },
+          deletedAt: null,
+        },
+        select: { id: true, title: true },
+      });
 
-      if (existing.length > 0) {
+      if (existing) {
         throw new Error(`A document with the title "${data.title}" already exists`);
       }
 
@@ -183,17 +191,17 @@ export class DocumentService {
     }
 
     if (data.categoryId) {
-      updates.push(`category_id = $${updates.length + 1}::uuid`);
+      updates.push(`category_id = $${updates.length + 1}`);
       values.push(data.categoryId);
     }
 
     if (data.folderId !== undefined) {
-      updates.push(`folder_id = $${updates.length + 1}::uuid`);
+      updates.push(`folder_id = $${updates.length + 1}`);
       values.push(data.folderId);
     }
 
     if (data.status) {
-      updates.push(`status = $${updates.length + 1}::document_status`);
+      updates.push(`status = $${updates.length + 1}::"DocumentStatus"`);
       values.push(data.status);
 
       if (data.status === 'PUBLISHED') {
@@ -211,7 +219,7 @@ export class DocumentService {
     await this.prisma.$executeRawUnsafe(`
       UPDATE documents
       SET ${updates.join(', ')}
-      WHERE id = $${values.length + 1}::uuid
+      WHERE id = $${values.length + 1}
     `, ...values, documentId);
 
     // Create new version if content changed
@@ -241,26 +249,26 @@ export class DocumentService {
    * Soft delete document (move to trash)
    */
   async deleteDocument(documentId: string) {
-    await this.prisma.$executeRaw`
-      UPDATE documents 
-      SET 
-        deleted_at = NOW(),
-        status = 'DRAFT'::document_status,
-        ai_accessible = FALSE,
-        embedding = NULL
-      WHERE id = ${documentId}::uuid
-    `;
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        deletedAt: new Date(),
+        status: 'DRAFT',
+        ai_accessible: false,
+        // Note: embedding cannot be set via Prisma (Unsupported type)
+        // A raw SQL query may still be needed if embedding must be cleared
+      },
+    });
   }
 
   /**
    * Restore document from trash
    */
   async restoreDocument(documentId: string) {
-    await this.prisma.$executeRaw`
-      UPDATE documents 
-      SET deleted_at = NULL 
-      WHERE id = ${documentId}::uuid
-    `;
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: { deletedAt: null },
+    });
     return this.getDocument(documentId);
   }
 
@@ -268,9 +276,9 @@ export class DocumentService {
    * Permanently delete document
    */
   async permanentDeleteDocument(documentId: string) {
-    await this.prisma.$executeRaw`
-      DELETE FROM documents WHERE id = ${documentId}::uuid
-    `;
+    await this.prisma.document.delete({
+      where: { id: documentId },
+    });
   }
 
   /**
@@ -299,19 +307,19 @@ export class DocumentService {
     }
 
     if (filters.categoryId) {
-      whereConditions.push(`d.category_id = $${paramIndex}::uuid`);
+      whereConditions.push(`d.category_id = $${paramIndex}`);
       queryParams.push(filters.categoryId);
       paramIndex++;
     }
 
     if (filters.folderId) {
-      whereConditions.push(`d.folder_id = $${paramIndex}::uuid`);
+      whereConditions.push(`d.folder_id = $${paramIndex}`);
       queryParams.push(filters.folderId);
       paramIndex++;
     }
 
     if (filters.status) {
-      whereConditions.push(`d.status = $${paramIndex}::document_status`);
+      whereConditions.push(`d.status = $${paramIndex}::"DocumentStatus"`);
       queryParams.push(filters.status);
       paramIndex++;
     }
@@ -379,21 +387,28 @@ export class DocumentService {
    */
   private async addTags(documentId: string, tagNames: string[]) {
     for (const tagName of tagNames) {
-      // Get or create tag
-      const tag = await this.prisma.$queryRaw<Array<{ id: string }>>`
-        INSERT INTO tags (name) VALUES (${tagName})
-        ON CONFLICT (name) DO UPDATE SET name = ${tagName}
-        RETURNING id
-      `;
+      // Get or create tag using Prisma upsert
+      const tag = await this.prisma.tag.upsert({
+        where: { name: tagName },
+        update: {},
+        create: { name: tagName },
+        select: { id: true },
+      });
 
-      const tagId = tag[0].id;
-
-      // Link to document
-      await this.prisma.$executeRaw`
-        INSERT INTO document_tags (document_id, tag_id)
-        VALUES (${documentId}::uuid, ${tagId}::uuid)
-        ON CONFLICT DO NOTHING
-      `;
+      // Link to document using Prisma create with ignore on conflict
+      await this.prisma.documentTag.upsert({
+        where: {
+          documentId_tagId: {
+            documentId,
+            tagId: tag.id,
+          },
+        },
+        update: {},
+        create: {
+          documentId,
+          tagId: tag.id,
+        },
+      });
     }
   }
 
@@ -402,9 +417,9 @@ export class DocumentService {
    */
   private async updateTags(documentId: string, tagNames: string[]) {
     // Remove existing tags
-    await this.prisma.$executeRaw`
-      DELETE FROM document_tags WHERE document_id = ${documentId}::uuid
-    `;
+    await this.prisma.documentTag.deleteMany({
+      where: { documentId },
+    });
 
     // Add new tags
     await this.addTags(documentId, tagNames);

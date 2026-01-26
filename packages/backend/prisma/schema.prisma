@@ -556,3 +556,104 @@ model DocumentAttachment {
   @@index([uploadedBy])
   @@map("document_attachments")
 }
+
+// ============================================================================
+// Core Monitoring & Incidents
+// ============================================================================
+
+model Incident {
+  id               String           @id @default(uuid())
+  title            String
+  severity         IncidentSeverity
+  status           IncidentStatus   @default(active)
+  impact           String?
+  alertCount       Int              @default(0) @map("alert_count")
+  hasForgeAnalysis Boolean          @default(false) @map("has_forge_analysis")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  resolvedAt       DateTime?        @map("resolved_at")
+
+  // Relations
+  alerts Alert[]
+
+  @@index([status])
+  @@index([severity])
+  @@index([createdAt])
+  @@map("incidents")
+}
+
+model Alert {
+  id         String        @id @default(uuid())
+  source     String
+  message    String
+  severity   AlertSeverity
+  labels     Json          @default("{}")
+  incidentId String?       @map("incident_id")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  // Relations
+  incident Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@index([incidentId])
+  @@index([source])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+model AlertRule {
+  id              String        @id @default(uuid())
+  name            String
+  description     String?
+  enabled         Boolean       @default(true)
+  source          String        // e.g., "electricity-usage" or "*"
+  eventType       String        @map("event_type")
+  conditions      Json          // Array of conditions
+  conditionLogic  String        @default("AND") @map("condition_logic") // "AND" | "OR"
+  severity        AlertSeverity
+  messageTemplate String?       @map("message_template")
+  labels          Json          @default("{}")
+  cooldownSeconds Int           @default(60) @map("cooldown_seconds")
+  lastTriggeredAt DateTime?     @map("last_triggered_at")
+
+  // Time Window
+  timeWindowEnabled Boolean   @default(false) @map("time_window_enabled")
+  timeWindowStart   String?   @map("time_window_start") // HH:MM
+  timeWindowEnd     String?   @map("time_window_end")   // HH:MM
+  timeWindowDays    Int[]     @map("time_window_days")
+
+  // Rate Limiting
+  rateLimitEnabled       Boolean   @default(false) @map("rate_limit_enabled")
+  rateLimitCount         Int       @default(5) @map("rate_limit_count")
+  rateLimitWindowSeconds Int       @default(300) @map("rate_limit_window_seconds")
+  rateLimitCurrentCount  Int       @default(0) @map("rate_limit_current_count")
+  rateLimitWindowStart   DateTime? @map("rate_limit_window_start")
+
+  // Escalation
+  escalationEnabled      Boolean       @default(false) @map("escalation_enabled")
+  escalationAfterMinutes Int           @default(30) @map("escalation_after_minutes")
+  escalationToSeverity   AlertSeverity @default(critical) @map("escalation_to_severity")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("alert_rules")
+}
+
+enum IncidentSeverity {
+  critical
+  warning
+  info
+}
+
+enum IncidentStatus {
+  active     @map("active")
+  investigating @map("investigating")
+  resolved   @map("resolved")
+  dismissed  @map("dismissed")
+}
+
+enum AlertSeverity {
+  critical
+  warning
+  info
+}

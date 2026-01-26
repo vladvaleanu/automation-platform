@@ -54,8 +54,9 @@ export function ModuleContainer({
   fallback,
 }: ModuleContainerProps) {
   // Lazy load the module component
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ModuleComponent = useMemo(() => {
-    return lazy(async () => {
+    return lazy(async (): Promise<{ default: React.ComponentType<ModuleComponentProps> }> => {
       try {
         // In production, modules would be served from a CDN or modules directory
         // For now, we'll use a dynamic import with the component path
@@ -63,7 +64,7 @@ export function ModuleContainer({
 
         // Support both default and named exports
         return {
-          default: module.default || module[Object.keys(module)[0]],
+          default: (module.default || module[Object.keys(module)[0]]) as React.ComponentType<ModuleComponentProps>,
         };
       } catch (error) {
         console.error(`Failed to load module component at ${componentPath}:`, error);

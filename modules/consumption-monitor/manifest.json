@@ -11,7 +11,7 @@
       "name": "Collect Consumption Data",
       "description": "Scrapes power meters and collects kWh consumption data from all enabled rack endpoints",
       "handler": "./src/jobs/collect-consumption.ts",
-      "schedule": null,
+      "schedule": "*/15 * * * *",
       "timeout": 300000,
       "retries": 2,
       "config": {
@@ -27,6 +27,23 @@
           "label": "Screenshot on Error",
           "description": "Capture screenshot when scraping fails (for debugging)",
           "default": true,
+          "required": false
+        }
+      }
+    },
+    "cleanup-readings": {
+      "name": "Cleanup Old Readings",
+      "description": "Deletes consumption readings older than the configured retention period",
+      "handler": "./src/jobs/cleanup-readings.ts",
+      "schedule": "0 3 * * 0",
+      "timeout": 60000,
+      "retries": 1,
+      "config": {
+        "retentionDays": {
+          "type": "number",
+          "label": "Retention Days",
+          "description": "Number of days to retain readings (uses module setting if not specified)",
+          "default": 365,
           "required": false
         }
       }

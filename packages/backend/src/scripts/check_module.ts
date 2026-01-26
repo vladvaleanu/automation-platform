@@ -18,7 +18,10 @@ async function checkModule() {
 
         if (docManager) {
             console.log('Status:', docManager.status);
-            console.log('Manifest Jobs:', JSON.stringify(docManager.manifest['jobs'], null, 2));
+            if (docManager.manifest && typeof docManager.manifest === 'object' && !Array.isArray(docManager.manifest)) {
+                const manifest = docManager.manifest as { jobs?: unknown };
+                console.log('Manifest Jobs:', JSON.stringify(manifest.jobs, null, 2));
+            }
         } else {
             console.log('Module NOT FOUND');
         }

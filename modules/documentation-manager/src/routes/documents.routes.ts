@@ -522,13 +522,13 @@ export async function documentsRoutes(app: FastifyInstance, context: ModuleConte
       // If disabling, also clear the embedding to ensure it's truly removed
       if (!aiAccessible) {
         await context.services.prisma.$executeRawUnsafe(
-          `UPDATE documents SET ai_accessible = $1, embedding = NULL, updated_at = NOW() WHERE id = $2::uuid`,
+          `UPDATE documents SET ai_accessible = $1, embedding = NULL, updated_at = NOW() WHERE id = $2`,
           aiAccessible,
           id
         );
       } else {
         await context.services.prisma.$executeRawUnsafe(
-          `UPDATE documents SET ai_accessible = $1, updated_at = NOW() WHERE id = $2::uuid`,
+          `UPDATE documents SET ai_accessible = $1, updated_at = NOW() WHERE id = $2`,
           aiAccessible,
           id
         );
@@ -585,7 +585,7 @@ export async function documentsRoutes(app: FastifyInstance, context: ModuleConte
       }
 
       const result = await context.services.prisma.$queryRawUnsafe<{ ai_accessible: boolean; ai_private: boolean; has_embedding: boolean }[]>(
-        `SELECT ai_accessible, ai_private, (embedding IS NOT NULL) as has_embedding FROM documents WHERE id = $1::uuid`,
+        `SELECT ai_accessible, ai_private, (embedding IS NOT NULL) as has_embedding FROM documents WHERE id = $1`,
         id
       );
 
@@ -641,12 +641,12 @@ export async function documentsRoutes(app: FastifyInstance, context: ModuleConte
       // If making private, also disable ai_accessible and clear embedding
       if (aiPrivate) {
         await context.services.prisma.$executeRawUnsafe(
-          `UPDATE documents SET ai_private = TRUE, ai_accessible = FALSE, embedding = NULL, updated_at = NOW() WHERE id = $1::uuid`,
+          `UPDATE documents SET ai_private = TRUE, ai_accessible = FALSE, embedding = NULL, updated_at = NOW() WHERE id = $1`,
           id
         );
       } else {
         await context.services.prisma.$executeRawUnsafe(
-          `UPDATE documents SET ai_private = FALSE, updated_at = NOW() WHERE id = $1::uuid`,
+          `UPDATE documents SET ai_private = FALSE, updated_at = NOW() WHERE id = $1`,
           id
         );
       }
@@ -681,7 +681,7 @@ async function generateDocumentEmbedding(context: ModuleContext, documentId: str
   try {
     // Get document content
     const docs = await prisma.$queryRawUnsafe<{ title: string; content: string }[]>(
-      `SELECT title, content FROM documents WHERE id = $1::uuid`,
+      `SELECT title, content FROM documents WHERE id = $1`,
       documentId
     );
 
@@ -716,7 +716,7 @@ async function generateDocumentEmbedding(context: ModuleContext, documentId: str
     // Store embedding in database
     const vectorString = `[${data.embedding.join(',')}]`;
     await prisma.$executeRawUnsafe(
-      `UPDATE documents SET embedding = $1::vector WHERE id = $2::uuid`,
+      `UPDATE documents SET embedding = $1::vector WHERE id = $2`,
       vectorString,
       documentId
     );

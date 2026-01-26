@@ -3,23 +3,9 @@
  * Following consumption-monitor pattern
  */
 
-import type { Logger } from 'pino';
-import type { PrismaClient } from '@prisma/client';
+// Re-export shared types for convenience
+export type { ModuleContext } from '@nxforge/shared';
 
-/**
- * Module context passed to routes and services
- */
-export interface ModuleContext {
-    module: {
-        id: string;
-        name: string;
-        version: string;
-    };
-    services: {
-        prisma: PrismaClient;
-        logger: Logger;
-    };
-}
 
 /**
  * AI Configuration stored in database

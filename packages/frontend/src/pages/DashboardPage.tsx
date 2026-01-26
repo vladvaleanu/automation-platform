@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Lock, LockOpen, RotateCcw, Plus } from 'lucide-react';
 import { dashboardApi, DashboardCardConfig } from '../api/dashboard';
 import { showError, showSuccess } from '../utils/toast.utils';
+import { Button, PageHeader } from '../components/ui';
 import DashboardCard from '../components/dashboard/DashboardCard';
 import ModulesCard from '../components/dashboard/cards/ModulesCard';
 import JobsCard from '../components/dashboard/cards/JobsCard';
@@ -264,7 +265,9 @@ export default function DashboardPage() {
       default:
         // Check if it's a dynamic module widget
         if (card.type.startsWith('module:')) {
-          const [_, moduleName, widgetId] = card.type.split(':');
+          const parts = card.type.split(':');
+          const moduleName = parts[1];
+          const widgetId = parts[2];
           const widgetDef = moduleWidgets?.find(w => w.moduleName === moduleName && w.id === widgetId);
 
           if (widgetDef) {
@@ -321,79 +324,78 @@ export default function DashboardPage() {
     <div className="p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {isLocked ? 'Layout is locked' : 'Drag cards to rearrange, click lock to save'}
-            </p>
-          </div>
+        <PageHeader
+          title="Dashboard"
+          description={isLocked ? 'Layout is locked' : 'Drag cards to rearrange, click lock to save'}
+          actions={
+            <div className="flex items-center gap-2">
+              {!isLocked && (
+                <>
+                  <div className="relative">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowAddMenu(!showAddMenu)}
+                      leftIcon={<Plus size={16} />}
+                    >
+                      Add Card
+                    </Button>
 
-          {/* Controls */}
-          <div className="flex items-center gap-2">
-            {!isLocked && (
-              <>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowAddMenu(!showAddMenu)}
-                    className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center gap-2"
+                    {showAddMenu && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10 max-h-64 overflow-y-auto">
+                        {getAvailableCardTypes(moduleWidgets).map(cardType => {
+                          const hasCard = cards.some(c => c.type === cardType.type && c.visible);
+                          return (
+                            <button
+                              key={cardType.type}
+                              onClick={() => !hasCard && handleAddCard(cardType.type)}
+                              disabled={hasCard}
+                              className={`w-full px-4 py-2 text-left text-sm text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${hasCard ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                            >
+                              <span>{cardType.icon}</span>
+                              <span>{cardType.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleResetLayout}
+                    leftIcon={<RotateCcw size={16} />}
+                    title="Reset to default layout"
                   >
-                    <Plus size={16} />
-                    Add Card
-                  </button>
+                    Reset
+                  </Button>
 
-                  {showAddMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-10 max-h-64 overflow-y-auto">
-                      {getAvailableCardTypes(moduleWidgets).map(cardType => {
-                        const hasCard = cards.some(c => c.type === cardType.type && c.visible);
-                        return (
-                          <button
-                            key={cardType.type}
-                            onClick={() => !hasCard && handleAddCard(cardType.type)}
-                            disabled={hasCard}
-                            className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${hasCard ? 'opacity-50 cursor-not-allowed' : ''
-                              }`}
-                          >
-                            <span>{cardType.icon}</span>
-                            <span>{cardType.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveLayout}
+                    disabled={saveLayoutMutation.isPending}
+                    isLoading={saveLayoutMutation.isPending}
+                  >
+                    Save Layout
+                  </Button>
+                </>
+              )}
 
-                <button
-                  onClick={handleResetLayout}
-                  className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center gap-2"
-                  title="Reset to default layout"
-                >
-                  <RotateCcw size={16} />
-                  Reset
-                </button>
-
-                <button
-                  onClick={handleSaveLayout}
-                  disabled={saveLayoutMutation.isPending}
-                  className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md"
-                >
-                  {saveLayoutMutation.isPending ? 'Saving...' : 'Save Layout'}
-                </button>
-              </>
-            )}
-
-            <button
-              onClick={handleToggleLock}
-              className={`p-2 rounded-md transition-colors ${isLocked
-                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                }`}
-              title={isLocked ? 'Unlock dashboard' : 'Lock dashboard'}
-            >
-              {isLocked ? <Lock size={18} /> : <LockOpen size={18} />}
-            </button>
-          </div>
-        </div>
+              <Button
+                variant={isLocked ? 'outline' : 'secondary'}
+                size="sm"
+                onClick={handleToggleLock}
+                className={isLocked ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800' : ''}
+                title={isLocked ? 'Unlock dashboard' : 'Lock dashboard'}
+              >
+                {isLocked ? <Lock size={18} /> : <LockOpen size={18} />}
+              </Button>
+            </div>
+          }
+        />
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">

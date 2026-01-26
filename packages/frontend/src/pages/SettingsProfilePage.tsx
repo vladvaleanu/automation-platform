@@ -9,8 +9,8 @@ import { showError, showSuccess } from '../utils/toast.utils';
 import { getErrorMessage } from '../utils/error.utils';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
-import { SkeletonLoader } from '../components/LoadingSpinner';
 import { tokenStorage } from '../utils/token-storage.utils';
+import { Button, Card, PageHeader, Badge, FormField, Input, LoadingState } from '../components/ui';
 
 export default function SettingsProfilePage() {
   const queryClient = useQueryClient();
@@ -36,9 +36,6 @@ export default function SettingsProfilePage() {
     queryKey: ['profile'],
     queryFn: async () => {
       const response = await authApi.getProfile();
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to load profile');
-      }
       return response.data;
     },
     staleTime: 0,
@@ -49,8 +46,8 @@ export default function SettingsProfilePage() {
   const profile = profileData as UserProfile | undefined;
   if (profile && !isProfileFormDirty) {
     if (profileForm.firstName !== (profile.firstName || '') ||
-        profileForm.lastName !== (profile.lastName || '') ||
-        profileForm.username !== profile.username) {
+      profileForm.lastName !== (profile.lastName || '') ||
+      profileForm.username !== profile.username) {
       setProfileForm({
         firstName: profile.firstName || '',
         lastName: profile.lastName || '',
@@ -63,9 +60,6 @@ export default function SettingsProfilePage() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: UpdateProfileData) => {
       const response = await authApi.updateProfile(data);
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to update profile');
-      }
       return response.data;
     },
     onSuccess: () => {
@@ -82,9 +76,6 @@ export default function SettingsProfilePage() {
   const changePasswordMutation = useMutation({
     mutationFn: async (data: ChangePasswordData) => {
       const response = await authApi.changePassword(data);
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to change password');
-      }
       return response.data;
     },
     onSuccess: () => {
@@ -101,9 +92,6 @@ export default function SettingsProfilePage() {
   const revokeSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       const response = await authApi.revokeSession(sessionId);
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to revoke session');
-      }
       return response.data;
     },
     onSuccess: () => {
@@ -123,9 +111,6 @@ export default function SettingsProfilePage() {
         throw new Error('No refresh token available');
       }
       const response = await authApi.revokeOtherSessions(refreshToken);
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to revoke sessions');
-      }
       return response.data;
     },
     onSuccess: () => {
@@ -157,7 +142,7 @@ export default function SettingsProfilePage() {
 
   const handleRevokeSession = (sessionId: string) => {
     confirm(
-      () => revokeSessionMutation.mutateAsync(sessionId),
+      async () => { await revokeSessionMutation.mutateAsync(sessionId); },
       {
         title: 'Revoke Session',
         message: 'Are you sure you want to revoke this session? The device will be logged out.',
@@ -169,7 +154,7 @@ export default function SettingsProfilePage() {
 
   const handleRevokeAllSessions = () => {
     confirm(
-      () => revokeOtherSessionsMutation.mutateAsync(),
+      async () => { await revokeOtherSessionsMutation.mutateAsync(); },
       {
         title: 'Revoke All Other Sessions',
         message: 'Are you sure you want to log out of all other devices? Only your current session will remain active.',
@@ -196,7 +181,7 @@ export default function SettingsProfilePage() {
     return (
       <div className="p-8">
         <div className="max-w-4xl mx-auto">
-          <SkeletonLoader lines={10} />
+          <LoadingState variant="skeleton" lines={10} />
         </div>
       </div>
     );
@@ -220,15 +205,13 @@ export default function SettingsProfilePage() {
     <div className="p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Profile Settings</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage your account information and security settings
-          </p>
-        </div>
+        <PageHeader
+          title="Profile Settings"
+          description="Manage your account information and security settings"
+        />
 
         {/* Profile Information */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <Card noPadding>
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">
               Profile Information
@@ -239,80 +222,62 @@ export default function SettingsProfilePage() {
           </div>
           <form onSubmit={handleProfileSubmit} className="px-6 py-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  First Name
-                </label>
-                <input
+              <FormField label="First Name">
+                <Input
                   type="text"
                   value={profileForm.firstName}
                   onChange={(e) => {
                     setProfileForm({ ...profileForm, firstName: e.target.value });
                     setIsProfileFormDirty(true);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Enter first name"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Last Name
-                </label>
-                <input
+              </FormField>
+              <FormField label="Last Name">
+                <Input
                   type="text"
                   value={profileForm.lastName}
                   onChange={(e) => {
                     setProfileForm({ ...profileForm, lastName: e.target.value });
                     setIsProfileFormDirty(true);
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="Enter last name"
                 />
-              </div>
+              </FormField>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Username
-              </label>
-              <input
+            <FormField label="Username">
+              <Input
                 type="text"
                 value={profileForm.username}
                 onChange={(e) => {
                   setProfileForm({ ...profileForm, username: e.target.value });
                   setIsProfileFormDirty(true);
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Enter username"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email
-              </label>
-              <input
+            </FormField>
+            <FormField label="Email" helpText="Email cannot be changed">
+              <Input
                 type="email"
                 value={profile?.email || ''}
                 disabled
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
               />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Email cannot be changed
-              </p>
-            </div>
+            </FormField>
             <div className="flex justify-end">
-              <button
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={updateProfileMutation.isPending || !isProfileFormDirty}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md font-medium disabled:cursor-not-allowed"
+                isLoading={updateProfileMutation.isPending}
               >
-                {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'}
-              </button>
+                Save Changes
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
 
         {/* Account Info */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <Card noPadding>
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">
               Account Information
@@ -339,19 +304,15 @@ export default function SettingsProfilePage() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500 dark:text-gray-400">Account Status</span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                profile?.isActive
-                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                  : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-              }`}>
+              <Badge variant={profile?.isActive ? 'success' : 'error'}>
                 {profile?.isActive ? 'Active' : 'Inactive'}
-              </span>
+              </Badge>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Change Password */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <Card noPadding>
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">
               Change Password
@@ -361,60 +322,49 @@ export default function SettingsProfilePage() {
             </p>
           </div>
           <form onSubmit={handlePasswordSubmit} className="px-6 py-4 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Current Password
-              </label>
-              <input
+            <FormField label="Current Password">
+              <Input
                 type="password"
                 value={passwordForm.currentPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Enter current password"
                 required
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                New Password
-              </label>
-              <input
+            </FormField>
+            <FormField label="New Password">
+              <Input
                 type="password"
                 value={passwordForm.newPassword}
                 onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Enter new password (min 8 characters)"
                 required
                 minLength={8}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Confirm New Password
-              </label>
-              <input
+            </FormField>
+            <FormField label="Confirm New Password">
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                 placeholder="Confirm new password"
                 required
               />
-            </div>
+            </FormField>
             <div className="flex justify-end">
-              <button
+              <Button
                 type="submit"
+                variant="primary"
                 disabled={changePasswordMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md font-medium disabled:cursor-not-allowed"
+                isLoading={changePasswordMutation.isPending}
               >
-                {changePasswordMutation.isPending ? 'Changing...' : 'Change Password'}
-              </button>
+                Change Password
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
 
         {/* Active Sessions */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <Card noPadding>
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <div>
               <h2 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -425,13 +375,15 @@ export default function SettingsProfilePage() {
               </p>
             </div>
             {profile?.sessions && profile.sessions.length > 1 && (
-              <button
+              <Button
                 onClick={handleRevokeAllSessions}
                 disabled={revokeOtherSessionsMutation.isPending}
-                className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-md font-medium disabled:cursor-not-allowed"
+                variant="danger"
+                size="sm"
+                isLoading={revokeOtherSessionsMutation.isPending}
               >
-                {revokeOtherSessionsMutation.isPending ? 'Revoking...' : 'Revoke All Others'}
-              </button>
+                Revoke All Others
+              </Button>
             )}
           </div>
           <div className="px-6 py-4">
@@ -450,9 +402,9 @@ export default function SettingsProfilePage() {
                           {parseUserAgent(session.userAgent)}
                         </span>
                         {index === 0 && (
-                          <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 rounded-full">
+                          <Badge variant="success" size="sm">
                             Current
-                          </span>
+                          </Badge>
                         )}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -462,20 +414,22 @@ export default function SettingsProfilePage() {
                       </div>
                     </div>
                     {index !== 0 && (
-                      <button
+                      <Button
                         onClick={() => handleRevokeSession(session.id)}
                         disabled={revokeSessionMutation.isPending}
-                        className="px-3 py-1 text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-medium"
+                        variant="danger"
+                        size="xs"
+                        isLoading={revokeSessionMutation.isPending}
                       >
                         Revoke
-                      </button>
+                      </Button>
                     )}
                   </div>
                 ))}
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* Confirmation Modal */}

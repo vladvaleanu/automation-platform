@@ -1,13 +1,12 @@
-import { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync } from 'fastify';
 import { registerRoutes } from './routes/index.js';
-import { ModuleContext } from './types/index.js';
+import type { BrowserModuleContext } from '@nxforge/shared';
 
 const plugin: FastifyPluginAsync = async (app) => {
   app.log.info('[ConsumptionMonitor] Module initialized');
 
   // Get services from app decoration (provided by core)
-  const prisma = (app as any).prisma;
-  const browserService = (app as any).browserService;
+  const { prisma, browserService } = app;
 
   if (!prisma) {
     app.log.error('Prisma instance not found on app decoration');
@@ -19,7 +18,7 @@ const plugin: FastifyPluginAsync = async (app) => {
     throw new Error('BrowserService not found on app decoration');
   }
 
-  const context: ModuleContext = {
+  const context: BrowserModuleContext = {
     module: {
       id: 'consumption-monitor',
       name: 'consumption-monitor',
@@ -27,7 +26,7 @@ const plugin: FastifyPluginAsync = async (app) => {
     },
     services: {
       prisma,
-      logger: app.log as any,
+      logger: app.log,
       browser: browserService,
     }
   };

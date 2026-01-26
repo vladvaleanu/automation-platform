@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import DynamicWidget from '../components/dashboard/DynamicWidget';
+import { PageHeader, Card, LoadingState } from '../components/ui';
 
 // A registry of module main pages if they exist
 // Similar to widget registry, but for full pages
@@ -36,7 +37,7 @@ export default function ModulePage() {
 
     if (SubPageComponent) {
         return (
-            <Suspense fallback={<div className="p-8">Loading...</div>}>
+            <Suspense fallback={<LoadingState text="Loading..." />}>
                 <SubPageComponent />
             </Suspense>
         );
@@ -47,7 +48,7 @@ export default function ModulePage() {
 
     if (ModuleComponent) {
         return (
-            <Suspense fallback={<div className="p-8">Loading module...</div>}>
+            <Suspense fallback={<LoadingState text="Loading module..." />}>
                 <ModuleComponent />
             </Suspense>
         );
@@ -57,40 +58,37 @@ export default function ModulePage() {
     // or a "Construction" page
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white capitalize">
-                    {moduleName?.replace('-', ' ')}
-                </h1>
-            </div>
+        <div className="p-8 space-y-6">
+            <PageHeader
+                title={moduleName?.replace('-', ' ') || 'Module'}
+                description={`The ${moduleName} module is enabled`}
+            />
 
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-800">
-                <div className="text-center">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
-                        <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                            {moduleName?.charAt(0).toUpperCase()}
-                        </span>
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                        Module Active
-                    </h3>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        The {moduleName} module is running.
-                    </p>
-
-                    {/* If it's consumption-monitor, let's show the widget here too as a demo */}
-                    {moduleName === 'consumption-monitor' && (
-                        <div className="mt-8 mx-auto max-w-sm h-64">
-                            <DynamicWidget
-                                moduleName="consumption-monitor"
-                                componentPath="./components/LivePowerWidget"
-                                title="Live Power Usage"
-                                refreshInterval={5000}
-                            />
-                        </div>
-                    )}
+            <Card className="text-center py-12">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/20">
+                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                        {moduleName?.charAt(0).toUpperCase()}
+                    </span>
                 </div>
-            </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    Module Active
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                    The {moduleName} module is running and accessible. Navigate to specific sub-pages or use the widgets on the dashboard.
+                </p>
+
+                {/* If it's consumption-monitor, let's show the widget here too as a demo */}
+                {moduleName === 'consumption-monitor' && (
+                    <div className="mt-8 mx-auto max-w-sm h-64">
+                        <DynamicWidget
+                            moduleName="consumption-monitor"
+                            componentPath="./components/LivePowerWidget"
+                            title="Live Power Usage"
+                            refreshInterval={5000}
+                        />
+                    </div>
+                )}
+            </Card>
         </div>
     );
 }

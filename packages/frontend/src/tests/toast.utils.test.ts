@@ -61,7 +61,7 @@ describe('Toast Utils', () => {
     it('should auto-dismiss after custom duration', () => {
       showSuccess('Test', 5000);
 
-      let container = document.getElementById('toast-container');
+      const container = document.getElementById('toast-container');
       let toast = container?.querySelector('div');
       expect(toast).toBeTruthy();
 
@@ -236,7 +236,7 @@ describe('Toast Utils', () => {
     it('should respect custom duration for success', () => {
       showSuccess('Test', 1000);
 
-      let container = document.getElementById('toast-container');
+      const container = document.getElementById('toast-container');
       let toast = container?.querySelector('div');
 
       vi.advanceTimersByTime(900);
@@ -251,7 +251,7 @@ describe('Toast Utils', () => {
     it('should respect custom duration for error', () => {
       showError('Test', 2000);
 
-      let container = document.getElementById('toast-container');
+      const container = document.getElementById('toast-container');
       let toast = container?.querySelector('div');
 
       vi.advanceTimersByTime(1900);

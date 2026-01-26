@@ -27,7 +27,7 @@ export class VersionService {
     const maxVersion = await this.prisma.$queryRaw<Array<{ max: number }>>`
       SELECT COALESCE(MAX(version), 0) as max
       FROM document_versions
-      WHERE document_id = ${documentId}::uuid
+      WHERE document_id = ${documentId}
     `;
 
     const nextVersion = (maxVersion[0]?.max || 0) + 1;
@@ -35,7 +35,7 @@ export class VersionService {
     await this.prisma.$executeRaw`
       INSERT INTO document_versions (document_id, version, title, content, author_id, change_note)
       VALUES (
-        ${documentId}::uuid,
+        ${documentId},
         ${nextVersion},
         ${title},
         ${content},
@@ -65,7 +65,7 @@ export class VersionService {
         ) as author
       FROM document_versions v
       JOIN users u ON v.author_id = u.id
-      WHERE v.document_id = ${documentId}::uuid
+      WHERE v.document_id = ${documentId}
       ORDER BY v.version DESC
     `;
 
@@ -86,7 +86,7 @@ export class VersionService {
         ) as author
       FROM document_versions v
       JOIN users u ON v.author_id = u.id
-      WHERE v.document_id = ${documentId}::uuid AND v.version = ${version}
+      WHERE v.document_id = ${documentId} AND v.version = ${version}
     `;
 
     return versions[0] || null;
@@ -109,7 +109,7 @@ export class VersionService {
         title = ${versionData.title},
         content = ${versionData.content},
         updated_at = NOW()
-      WHERE id = ${documentId}::uuid
+      WHERE id = ${documentId}
     `;
 
     // Create new version for the restore action

@@ -96,8 +96,8 @@ export function createOptimisticMutation<TVariables, TData, TContext = any>({
 
     onError: (error: any, variables: TVariables, context: TContext | undefined) => {
       // Rollback on error
-      if (context?.previousData) {
-        queryClient.setQueryData(queryKey, context.previousData);
+      if (context && typeof context === 'object' && 'previousData' in context) {
+        queryClient.setQueryData(queryKey, (context as { previousData: unknown }).previousData);
       }
 
       // Call custom error handler
@@ -126,7 +126,7 @@ export const OptimisticPatterns = {
   toggle: <T extends { id: string }>(
     queryClient: QueryClient,
     queryKey: any[],
-    itemId: string,
+    _itemId: string, // Kept for API compatibility
     field: keyof T
   ) => {
     return createOptimisticMutation({
@@ -154,8 +154,8 @@ export const OptimisticPatterns = {
   updateStatus: <T extends { id: string; status: string }>(
     queryClient: QueryClient,
     queryKey: any[],
-    itemId: string,
-    newStatus: string
+    _itemId: string, // Kept for API compatibility
+    _newStatus: string // Kept for API compatibility
   ) => {
     return createOptimisticMutation({
       queryClient,
@@ -180,7 +180,7 @@ export const OptimisticPatterns = {
   delete: <T extends { id: string }>(
     queryClient: QueryClient,
     queryKey: any[],
-    itemId: string
+    _itemId: string // Kept for API compatibility
   ) => {
     return createOptimisticMutation({
       queryClient,
@@ -213,7 +213,7 @@ export const OptimisticPatterns = {
 
         return { tempId };
       },
-      onSuccess: (data: any, variables: T, context: any) => {
+      onSuccess: (data: any, _variables: T, context: any) => {
         // Replace temp item with real item
         queryClient.setQueryData(queryKey, (old: any) => {
           if (!old?.data) return old;

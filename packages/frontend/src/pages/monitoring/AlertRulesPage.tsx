@@ -13,12 +13,15 @@ import {
     ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { alertRulesApi, type AlertRule, type AlertCondition, type AlertRuleRequest, type EventSource } from '../../modules/ai-copilot/api';
+import { Button, Badge, Card, Modal, ModalFooter, PageHeader, LoadingState, EmptyState, Input, Select, FormField } from '../../components/ui';
+import { useConfirm } from '../../hooks/useConfirm';
+import ConfirmModal from '../../components/ConfirmModal';
 
-// Severity badge colors
-const severityColors = {
-    critical: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
-    warning: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300',
-    info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300',
+// Severity badge colors mapping to our Badge component variants
+const severityVariantMap: Record<string, 'error' | 'warning' | 'info'> = {
+    critical: 'error',
+    warning: 'warning',
+    info: 'info',
 };
 
 // Operator display names
@@ -35,6 +38,7 @@ const operatorLabels: Record<string, string> = {
 
 export default function AlertRulesPage() {
     const queryClient = useQueryClient();
+    const { confirm, confirmState, handleConfirm, handleClose } = useConfirm();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
 
@@ -74,103 +78,91 @@ export default function AlertRulesPage() {
     };
 
     const handleDelete = (rule: AlertRule) => {
-        if (confirm(`Delete rule "${rule.name}"?`)) {
-            deleteMutation.mutate(rule.id);
-        }
+        confirm(
+            async () => { await deleteMutation.mutateAsync(rule.id); },
+            {
+                title: 'Delete Alert Rule',
+                message: `Are you sure you want to delete "${rule.name}"? This action cannot be undone.`,
+                confirmText: 'Delete',
+                variant: 'danger',
+            }
+        );
     };
 
     const rules = data?.rules || [];
     const sources = sourcesData?.sources || [];
 
     return (
-        <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-950">
-            {/* Page Header */}
-            <div className="flex-shrink-0 px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
-                            <BellAlertIcon className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                                Alert Rules
-                            </h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Configure rules that trigger alerts when events match conditions
-                            </p>
-                        </div>
+        <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-950 p-6 overflow-hidden">
+            <PageHeader
+                title="Alert Rules"
+                description="Configure rules that trigger alerts when events match your specified conditions"
+                icon={
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/25">
+                        <BellAlertIcon className="h-5 w-5 text-white" />
                     </div>
-                    <button
-                        onClick={handleAdd}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                    >
-                        <PlusIcon className="h-5 w-5" />
+                }
+                actions={
+                    <Button onClick={handleAdd} leftIcon={<PlusIcon className="h-5 w-5" />}>
                         Add Rule
-                    </button>
-                </div>
-            </div>
+                    </Button>
+                }
+            />
 
             {/* Page Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto space-y-6">
                 {/* Loading state */}
                 {isLoading && (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center">
-                        <div className="animate-spin h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full mx-auto"></div>
-                        <p className="mt-4 text-gray-500">Loading rules...</p>
-                    </div>
+                    <Card>
+                        <LoadingState text="Loading rules..." />
+                    </Card>
                 )}
 
                 {/* Error state */}
                 {error && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <Card className="bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800">
                         <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
                             <ExclamationTriangleIcon className="h-5 w-5" />
                             <span>Failed to load alert rules</span>
                         </div>
-                    </div>
+                    </Card>
                 )}
 
                 {/* Empty state */}
                 {!isLoading && !error && rules.length === 0 && (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl p-12 text-center border border-gray-200 dark:border-gray-700">
-                        <BellAlertIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto" />
-                        <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">
-                            No alert rules configured
-                        </h3>
-                        <p className="mt-2 text-gray-500 dark:text-gray-400">
-                            Create rules to automatically generate alerts when events match your conditions.
-                        </p>
-                        <button
-                            onClick={handleAdd}
-                            className="mt-6 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                        >
-                            Create First Rule
-                        </button>
-                    </div>
+                    <Card>
+                        <EmptyState
+                            icon={<BellAlertIcon className="h-16 w-16" />}
+                            title="No alert rules configured"
+                            description="Create rules to automatically generate alerts when events match your conditions."
+                            action={{ label: 'Create First Rule', onClick: handleAdd }}
+                        />
+                    </Card>
                 )}
 
                 {/* Rules list */}
+                {/* Rules list */}
                 {!isLoading && rules.length > 0 && (
-                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <Card noPadding className="overflow-hidden">
                         <table className="w-full">
                             <thead className="bg-gray-50 dark:bg-gray-900/50">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Enabled
                                     </th>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Name
                                     </th>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Source
                                     </th>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Conditions
                                     </th>
-                                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Severity
                                     </th>
-                                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">
+                                    <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                         Actions
                                     </th>
                                 </tr>
@@ -178,7 +170,7 @@ export default function AlertRulesPage() {
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                                 {rules.map((rule) => (
                                     <tr key={rule.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30">
-                                        <td className="px-4 py-3">
+                                        <td className="px-6 py-4">
                                             <button
                                                 onClick={() => toggleMutation.mutate({ id: rule.id, enabled: !rule.enabled })}
                                                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${rule.enabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
@@ -190,8 +182,8 @@ export default function AlertRulesPage() {
                                                 />
                                             </button>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <div className="font-medium text-gray-900 dark:text-white">
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-gray-900 dark:text-white text-sm">
                                                 {rule.name}
                                             </div>
                                             {rule.description && (
@@ -200,10 +192,10 @@ export default function AlertRulesPage() {
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
                                             {rule.source === '*' ? 'All Sources' : rule.source}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-6 py-4">
                                             <div className="flex flex-wrap gap-1">
                                                 {rule.conditions.length === 0 ? (
                                                     <span className="text-sm text-gray-400">No conditions</span>
@@ -211,47 +203,39 @@ export default function AlertRulesPage() {
                                                     rule.conditions.slice(0, 2).map((c, i) => (
                                                         <span
                                                             key={i}
-                                                            className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded text-gray-700 dark:text-gray-300"
+                                                            className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-700/50 rounded text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
                                                         >
                                                             {c.field} {operatorLabels[c.operator] || c.operator} {c.value}
                                                         </span>
                                                     ))
                                                 )}
                                                 {rule.conditions.length > 2 && (
-                                                    <span className="text-xs text-gray-400">
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
                                                         +{rule.conditions.length - 2} more
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${severityColors[rule.severity]}`}>
+                                        <td className="px-6 py-4">
+                                            <Badge variant={severityVariantMap[rule.severity] || 'neutral'}>
                                                 {rule.severity}
-                                            </span>
+                                            </Badge>
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-6 py-4">
                                             <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleEdit(rule)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <PencilSquareIcon className="h-5 w-5" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(rule)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <TrashIcon className="h-5 w-5" />
-                                                </button>
+                                                <Button size="xs" variant="ghost" onClick={() => handleEdit(rule)}>
+                                                    <PencilSquareIcon className="h-4 w-4" />
+                                                </Button>
+                                                <Button size="xs" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20" onClick={() => handleDelete(rule)}>
+                                                    <TrashIcon className="h-4 w-4" />
+                                                </Button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                    </div>
+                    </Card>
                 )}
             </div>
 
@@ -267,6 +251,17 @@ export default function AlertRulesPage() {
                     }}
                 />
             )}
+            {/* Confirmation Modal */}
+            <ConfirmModal
+                isOpen={confirmState.isOpen}
+                onClose={handleClose}
+                onConfirm={handleConfirm}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmText={confirmState.confirmText}
+                variant={confirmState.variant}
+                isLoading={confirmState.isLoading}
+            />
         </div>
     );
 }
@@ -388,100 +383,82 @@ function RuleEditorModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {isEditing ? 'Edit Alert Rule' : 'Create Alert Rule'}
-                    </h2>
-                    {/* Tabs */}
-                    <div className="flex gap-4 mt-3">
-                        <button
-                            onClick={() => setActiveTab('basic')}
-                            className={`text-sm font-medium pb-1 border-b-2 transition-colors ${activeTab === 'basic'
-                                    ? 'text-purple-600 border-purple-600'
-                                    : 'text-gray-500 border-transparent hover:text-gray-700'
-                                }`}
-                        >
-                            Basic Settings
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('advanced')}
-                            className={`text-sm font-medium pb-1 border-b-2 transition-colors ${activeTab === 'advanced'
-                                    ? 'text-purple-600 border-purple-600'
-                                    : 'text-gray-500 border-transparent hover:text-gray-700'
-                                }`}
-                        >
-                            Advanced Settings
-                        </button>
-                    </div>
+        <Modal
+            isOpen={true}
+            onClose={onClose}
+            title={isEditing ? 'Edit Alert Rule' : 'Create Alert Rule'}
+            size="2xl"
+        >
+            <div className="space-y-6">
+                {/* Tabs */}
+                <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
+                    <button
+                        onClick={() => setActiveTab('basic')}
+                        className={`text-sm font-medium pb-2 border-b-2 transition-colors ${activeTab === 'basic'
+                            ? 'text-purple-600 border-purple-600'
+                            : 'text-gray-500 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+                            }`}
+                    >
+                        Basic Settings
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('advanced')}
+                        className={`text-sm font-medium pb-2 border-b-2 transition-colors ${activeTab === 'advanced'
+                            ? 'text-purple-600 border-purple-600'
+                            : 'text-gray-500 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+                            }`}
+                    >
+                        Advanced Settings
+                    </button>
                 </div>
 
                 {/* Body */}
-                <div className="px-6 py-4 space-y-4">
+                <div className="space-y-4">
                     {error && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                             {error}
                         </div>
                     )}
-
                     {activeTab === 'basic' && (
                         <>
                             {/* Name */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Rule Name *
-                                </label>
-                                <input
+                            <FormField label="Rule Name" required>
+                                <Input
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     placeholder="e.g., High Power Usage Alert"
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 />
-                            </div>
+                            </FormField>
 
                             {/* Description */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Description
-                                </label>
-                                <input
+                            <FormField label="Description">
+                                <Input
                                     type="text"
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                     placeholder="Optional description"
-                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 />
-                            </div>
+                            </FormField>
 
                             {/* Source & Event Type */}
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Event Source
-                                    </label>
-                                    <select
+                                <FormField label="Event Source">
+                                    <Select
                                         value={source}
                                         onChange={(e) => setSource(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     >
                                         {sources.map((s) => (
                                             <option key={s.id} value={s.id}>
                                                 {s.name}
                                             </option>
                                         ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                        Event Type
-                                    </label>
-                                    <select
+                                    </Select>
+                                </FormField>
+                                <FormField label="Event Type">
+                                    <Select
                                         value={eventType}
                                         onChange={(e) => setEventType(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                     >
                                         <option value="*">All Types</option>
                                         <option value="metric.collected">Metric Collected</option>
@@ -489,13 +466,13 @@ function RuleEditorModal({
                                         <option value="job.failed">Job Failed</option>
                                         <option value="job.completed">Job Completed</option>
                                         <option value="module.loaded">Module Loaded</option>
-                                    </select>
-                                </div>
+                                    </Select>
+                                </FormField>
                             </div>
 
                             {/* Severity */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                     Alert Severity
                                 </label>
                                 <div className="flex gap-4">
@@ -509,9 +486,9 @@ function RuleEditorModal({
                                                 onChange={() => setSeverity(s)}
                                                 className="text-purple-600"
                                             />
-                                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${severityColors[s]}`}>
+                                            <Badge variant={severityVariantMap[s] || 'neutral'}>
                                                 {s}
-                                            </span>
+                                            </Badge>
                                         </label>
                                     ))}
                                 </div>
@@ -569,19 +546,20 @@ function RuleEditorModal({
                                 <div className="space-y-2">
                                     {conditions.map((condition, index) => (
                                         <div key={index} className="flex items-center gap-2">
-                                            <input
-                                                type="text"
-                                                value={condition.field}
-                                                onChange={(e) => updateCondition(index, { field: e.target.value })}
-                                                placeholder="Field (e.g., power)"
-                                                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                            />
-                                            <select
+                                            <div className="flex-1">
+                                                <Input
+                                                    type="text"
+                                                    value={condition.field}
+                                                    onChange={(e) => updateCondition(index, { field: e.target.value })}
+                                                    placeholder="Field (e.g., power)"
+                                                />
+                                            </div>
+                                            <Select
                                                 value={condition.operator}
                                                 onChange={(e) =>
                                                     updateCondition(index, { operator: e.target.value as AlertCondition['operator'] })
                                                 }
-                                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="w-auto"
                                             >
                                                 <option value="eq">=</option>
                                                 <option value="ne">≠</option>
@@ -591,14 +569,15 @@ function RuleEditorModal({
                                                 <option value="lte">≤</option>
                                                 <option value="contains">contains</option>
                                                 <option value="not_contains">not contains</option>
-                                            </select>
-                                            <input
-                                                type="text"
-                                                value={condition.value}
-                                                onChange={(e) => updateCondition(index, { value: e.target.value })}
-                                                placeholder="Value"
-                                                className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                                            />
+                                            </Select>
+                                            <div className="w-32">
+                                                <Input
+                                                    type="text"
+                                                    value={condition.value}
+                                                    onChange={(e) => updateCondition(index, { value: e.target.value })}
+                                                    placeholder="Value"
+                                                />
+                                            </div>
                                             <button
                                                 type="button"
                                                 onClick={() => removeCondition(index)}
@@ -617,19 +596,15 @@ function RuleEditorModal({
                             </div>
 
                             {/* Cooldown */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                    Cooldown (seconds)
-                                </label>
-                                <input
+                            <FormField label="Cooldown (seconds)" helpText="Minimum time between alerts from this rule">
+                                <Input
                                     type="number"
                                     value={cooldownSeconds}
                                     onChange={(e) => setCooldownSeconds(parseInt(e.target.value) || 60)}
                                     min={0}
-                                    className="w-32 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    className="w-32"
                                 />
-                                <p className="text-xs text-gray-500 mt-1">Minimum time between alerts from this rule</p>
-                            </div>
+                            </FormField>
                         </>
                     )}
 
@@ -654,21 +629,21 @@ function RuleEditorModal({
                                         <div className="flex items-center gap-4">
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">Start Time</label>
-                                                <input
+                                                <Input
                                                     type="time"
                                                     value={timeWindowStart}
                                                     onChange={(e) => setTimeWindowStart(e.target.value)}
-                                                    className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                    className="py-1.5 text-sm"
                                                 />
                                             </div>
                                             <span className="text-gray-500">to</span>
                                             <div>
                                                 <label className="block text-xs text-gray-500 mb-1">End Time</label>
-                                                <input
+                                                <Input
                                                     type="time"
                                                     value={timeWindowEnd}
                                                     onChange={(e) => setTimeWindowEnd(e.target.value)}
-                                                    className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                    className="py-1.5 text-sm"
                                                 />
                                             </div>
                                         </div>
@@ -681,8 +656,8 @@ function RuleEditorModal({
                                                         type="button"
                                                         onClick={() => toggleDay(i + 1)}
                                                         className={`px-3 py-1 text-xs rounded-lg transition-colors ${timeWindowDays.includes(i + 1)
-                                                                ? 'bg-purple-600 text-white'
-                                                                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                                                            ? 'bg-purple-600 text-white'
+                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
                                                             }`}
                                                     >
                                                         {label}
@@ -712,23 +687,23 @@ function RuleEditorModal({
                                     <div className="pl-6 flex items-center gap-4">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Max Triggers</label>
-                                            <input
+                                            <Input
                                                 type="number"
                                                 value={rateLimitCount}
                                                 onChange={(e) => setRateLimitCount(parseInt(e.target.value) || 5)}
                                                 min={1}
-                                                className="w-20 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="w-20 py-1.5 text-sm"
                                             />
                                         </div>
                                         <span className="text-gray-500">in</span>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Window (seconds)</label>
-                                            <input
+                                            <Input
                                                 type="number"
                                                 value={rateLimitWindowSeconds}
                                                 onChange={(e) => setRateLimitWindowSeconds(parseInt(e.target.value) || 300)}
                                                 min={60}
-                                                className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="w-32 py-1.5 text-sm"
                                             />
                                         </div>
                                     </div>
@@ -753,27 +728,27 @@ function RuleEditorModal({
                                     <div className="pl-6 flex items-center gap-4">
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Escalate After (minutes)</label>
-                                            <input
+                                            <Input
                                                 type="number"
                                                 value={escalationAfterMinutes}
                                                 onChange={(e) => setEscalationAfterMinutes(parseInt(e.target.value) || 30)}
                                                 min={1}
-                                                className="w-24 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="w-32 py-1.5 text-sm"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-xs text-gray-500 mb-1">Escalate To</label>
-                                            <select
+                                            <Select
                                                 value={escalationToSeverity}
                                                 onChange={(e) =>
                                                     setEscalationToSeverity(e.target.value as 'critical' | 'warning' | 'info')
                                                 }
-                                                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                                                className="py-1.5 text-sm"
                                             >
                                                 <option value="critical">Critical</option>
                                                 <option value="warning">Warning</option>
                                                 <option value="info">Info</option>
-                                            </select>
+                                            </Select>
                                         </div>
                                     </div>
                                 )}
@@ -783,23 +758,15 @@ function RuleEditorModal({
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
+                <ModalFooter>
+                    <Button variant="ghost" onClick={onClose}>
                         Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        {isSaving ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Rule'}
-                    </button>
-                </div>
+                    </Button>
+                    <Button onClick={handleSave} isLoading={isSaving} disabled={isSaving}>
+                        {isEditing ? 'Save Changes' : 'Create Rule'}
+                    </Button>
+                </ModalFooter>
             </div>
-        </div>
+        </Modal>
     );
 }
-

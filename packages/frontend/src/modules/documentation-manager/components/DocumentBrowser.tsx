@@ -21,6 +21,7 @@ import {
 } from '../api/docs.api';
 import { showSuccess, showError } from '../../../utils/toast.utils';
 import ConfirmModal from '../../../components/ConfirmModal';
+import { Modal, ModalFooter, Button } from '../../../components/ui';
 
 interface DocumentBrowserProps {
   onSelectDocument?: (document: DocumentListItem) => void;
@@ -91,14 +92,19 @@ export default function DocumentBrowser({
     enabled: !!selectedCategoryId && viewMode === 'browser'
   });
 
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
   // Fetch documents - different queries for browser vs trash
   const { data: documents = [] } = useQuery({
-    queryKey: ['docs-documents', viewMode === 'trash' ? 'trash' : selectedCategoryId, searchQuery],
+    queryKey: ['docs-documents', viewMode === 'trash' ? 'trash' : selectedCategoryId, searchQuery, page],
     queryFn: async () => {
       const response = await documentsApi.list({
         categoryId: viewMode === 'trash' ? undefined : selectedCategoryId,
         search: searchQuery || undefined,
-        trashed: viewMode === 'trash'
+        trashed: viewMode === 'trash',
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       });
       if (Array.isArray(response)) return response;
       return response.data || [];
@@ -367,20 +373,24 @@ export default function DocumentBrowser({
             {folder.document_count || 0}
           </span>
           <div className="hidden group-hover:flex items-center gap-0.5">
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={(e) => openEditFolderModal(folder, e)}
-              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              className="p-1 h-auto text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
               title="Edit Folder"
             >
               <PencilIcon className="h-3.5 w-3.5" />
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={(e) => handleDeleteFolder(e, folder.id, folder.name)}
-              className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+              className="p-1 h-auto text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
               title="Delete Folder"
             >
               <TrashIcon className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -411,13 +421,15 @@ export default function DocumentBrowser({
                     Archived
                   </span>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={(e) => handleDelete(e, doc.id, doc.title)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1 h-auto text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
                   title="Delete Document"
                 >
                   <TrashIcon className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -437,20 +449,24 @@ export default function DocumentBrowser({
         <p className="text-xs text-gray-400">Deleted {new Date(doc.updated_at).toLocaleDateString()}</p>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={(e) => handleRestore(e, doc.id, doc.title)}
-          className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-gray-400 hover:text-green-600 dark:hover:text-green-400"
+          className="p-1 h-auto text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30"
           title="Restore"
         >
           <ArrowPathIcon className="h-4 w-4" />
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={(e) => handlePermanentDelete(e, doc.id, doc.title)}
-          className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+          className="p-1 h-auto text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
           title="Delete Permanently"
         >
           <XMarkIcon className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -458,7 +474,7 @@ export default function DocumentBrowser({
   const rootDocuments = documents.filter(d => !d.folder_id);
 
   // Group trash documents by category
-  const trashGroups = viewMode === 'trash' ? Object.values(documents.reduce((acc, doc) => {
+  const trashGroups = viewMode === 'trash' ? (Object.values(documents.reduce((acc, doc) => {
     // Backend listDocuments might not return root category_id, but returns category object
     const catId = doc.category?.id || doc.category_id || 'uncategorized';
     if (!acc[catId]) {
@@ -470,8 +486,8 @@ export default function DocumentBrowser({
     }
     acc[catId].docs.push(doc);
     return acc;
-  }, {} as Record<string, { id: string, name: string, docs: DocumentListItem[] }>))
-    .sort((a: { id: string, name: string }, b: { id: string, name: string }) => {
+  }, {} as Record<string, { id: string, name: string, docs: DocumentListItem[] }>)) as { id: string, name: string, docs: DocumentListItem[] }[])
+    .sort((a, b) => {
       const catA = categories.find(c => c.id === a.id);
       const catB = categories.find(c => c.id === b.id);
       // Sort by defined category order first, then alphabetical for others
@@ -592,13 +608,15 @@ export default function DocumentBrowser({
                     Archived
                   </span>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={(e) => handleDelete(e, doc.id, doc.title)}
-                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1 h-auto text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
                   title="Delete Document"
                 >
                   <TrashIcon className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             ))}
             {documents.length === 0 && !searchQuery && (
@@ -615,6 +633,31 @@ export default function DocumentBrowser({
         )}
       </div>
 
+      {/* Pagination Controls */}
+      <div className="flex items-center justify-between p-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="text-xs"
+        >
+          Previous
+        </Button>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          Page {page}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setPage(p => p + 1)}
+          disabled={documents.length < 50} // Assuming default limit/page size is 50
+          className="text-xs"
+        >
+          Next
+        </Button>
+      </div>
+
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmation.isOpen}
@@ -625,42 +668,42 @@ export default function DocumentBrowser({
       />
 
       {/* Folder Modal */}
-      {folderModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-              {folderModal.mode === 'create' ? 'New Folder' : 'Edit Folder'}
-            </h3>
-            <input
-              type="text"
-              value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
-              placeholder="Folder name"
-              autoFocus
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleFolderSubmit();
-                if (e.key === 'Escape') closeFolderModal();
-              }}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={closeFolderModal}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFolderSubmit}
-                disabled={!folderName.trim() || createFolderMutation.isPending || updateFolderMutation.isPending}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded-lg transition-colors"
-              >
-                {createFolderMutation.isPending || updateFolderMutation.isPending ? 'Saving...' : (folderModal.mode === 'create' ? 'Create' : 'Save')}
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={folderModal.isOpen}
+        onClose={closeFolderModal}
+        title={folderModal.mode === 'create' ? 'New Folder' : 'Edit Folder'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="Folder name"
+            autoFocus
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleFolderSubmit();
+              if (e.key === 'Escape') closeFolderModal();
+            }}
+          />
         </div>
-      )}
+        <ModalFooter>
+          <Button
+            variant="ghost"
+            onClick={closeFolderModal}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleFolderSubmit}
+            disabled={!folderName.trim() || createFolderMutation.isPending || updateFolderMutation.isPending}
+            isLoading={createFolderMutation.isPending || updateFolderMutation.isPending}
+          >
+            {folderModal.mode === 'create' ? 'Create' : 'Save'}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }

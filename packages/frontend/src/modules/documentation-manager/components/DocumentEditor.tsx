@@ -17,6 +17,8 @@ import { documentsApi, categoriesApi, foldersApi, type Document, type CreateDocu
 import { RichTextEditor } from './RichTextEditor';
 import { DocumentHistory } from './DocumentHistory';
 import { showError, showSuccess } from '../../../utils/toast.utils';
+import { Modal, Button } from '../../../components/ui';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 interface DocumentEditorProps {
   documentId?: string;
@@ -42,8 +44,9 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
   const [aiPrivate, setAiPrivate] = useState(false);
   const [hasEmbedding, setHasEmbedding] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [isDirty, setIsDirty] = useState(!isEditMode); // New docs start dirty, edits start clean
+  const [isDirty, setIsDirty] = useState(false); // Always start clean until user input
   const [creationSuccess, setCreationSuccess] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const isInitialLoad = useRef(isEditMode); // Track if we're still loading in edit mode
 
   // Safe setter that respects initial load
@@ -194,10 +197,12 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
       setIsDirty(false);
       setCreationSuccess(true);
       setTimeout(() => setCreationSuccess(false), 3000);
+      showSuccess('Document created successfully');
       onSave?.(response.data);
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.error?.message || error?.message || 'Failed to create document';
+    onError: (error: unknown) => {
+      const apiError = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      const message = apiError?.response?.data?.error?.message || apiError?.message || 'Failed to create document';
       showError(message);
     },
   });
@@ -214,10 +219,12 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
       // Don't close - keep popup open
       setIsDirty(false);
       setChangeNote(''); // Clear change note after save
+      showSuccess('Document updated successfully');
       onSave?.(response.data);
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.error?.message || error?.message || 'Failed to update document';
+    onError: (error: unknown) => {
+      const apiError = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
+      const message = apiError?.response?.data?.error?.message || apiError?.message || 'Failed to update document';
       showError(message);
     },
   });
@@ -246,6 +253,33 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
         status,
         tags,
       });
+    }
+  };
+
+  // Keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+S or Ctrl+S
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+
+        // Only trigger if valid
+        if (title.trim() && content.trim() && categoryId && !createMutation.isPending && !updateMutation.isPending && (!isEditMode || isDirty)) {
+          handleSave();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [title, content, categoryId, folderId, status, tags, changeNote, isEditMode, isDirty, createMutation.isPending, updateMutation.isPending]);
+
+  // Close handler with unsafe changes protection
+  const handleClose = () => {
+    if (isDirty) {
+      setShowExitConfirmation(true);
+    } else {
+      onClose();
     }
   };
 
@@ -297,367 +331,369 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
     return html;
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-6 py-4">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-            {isEditMode ? 'Edit Document' : 'New Document'}
-          </h2>
-          <div className="flex items-center gap-2">
-            {/* Editor Mode Toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-              <button
-                onClick={() => {
-                  setEditorMode('markdown');
-                  setShowPreview(false);
-                }}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'markdown'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400'
-                  }`}
-              >
-                Markdown
-              </button>
-              <button
-                onClick={() => {
-                  setEditorMode('wysiwyg');
-                  setShowPreview(false);
-                }}
-                className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'wysiwyg'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400'
-                  }`}
-              >
-                WYSIWYG
-              </button>
-            </div>
-
-            {/* Preview toggle (only for Markdown mode) */}
-            {editorMode === 'markdown' && (
-              <button
-                onClick={() => setShowPreview(!showPreview)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-              >
-                {showPreview ? (
-                  <>
-                    <CodeBracketIcon className="h-4 w-4" />
-                    Edit
-                  </>
-                ) : (
-                  <>
-                    <EyeIcon className="h-4 w-4" />
-                    Preview
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* History Button (Edit Mode Only) */}
-            {isEditMode && (
-              <button
-                onClick={() => setShowHistory(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-                title="Version History"
-              >
-                <ClockIcon className="h-5 w-5" />
-              </button>
-            )}
-
+  // Render editor content
+  const renderEditorContent = () => (
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg">
+      {/* Header content now handled in Modal Header but we might need custom header actions */}
+      <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+        <div className="flex items-center gap-2">
+          {/* Editor Mode Toggle */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
             <button
-              onClick={handleSave}
-              disabled={!title.trim() || !content.trim() || !categoryId || createMutation.isPending || updateMutation.isPending || (isEditMode && !isDirty) || creationSuccess}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${creationSuccess
-                ? 'bg-green-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed'
+              onClick={() => {
+                setEditorMode('markdown');
+                setShowPreview(false);
+              }}
+              className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'markdown'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400'
                 }`}
             >
-              {creationSuccess ? (
-                <>
-                  <DocumentCheckIcon className="h-4 w-4" />
-                  Created
-                </>
-              ) : (
-                <>
-                  <DocumentCheckIcon className="h-4 w-4" />
-                  {isEditMode ? (isDirty ? 'Update' : 'Saved') : 'Create'}
-                </>
-              )}
+              Markdown
             </button>
             <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg"
+              onClick={() => {
+                setEditorMode('wysiwyg');
+                setShowPreview(false);
+              }}
+              className={`px-3 py-1.5 text-sm rounded transition-colors ${editorMode === 'wysiwyg'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400'
+                }`}
             >
-              <XMarkIcon className="h-5 w-5" />
+              WYSIWYG
             </button>
           </div>
+
+          {/* Preview toggle (only for Markdown mode) */}
+          {editorMode === 'markdown' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPreview(!showPreview)}
+              leftIcon={showPreview ? <CodeBracketIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            >
+              {showPreview ? 'Edit' : 'Preview'}
+            </Button>
+          )}
+
+          {/* History Button (Edit Mode Only) */}
+          {isEditMode && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHistory(true)}
+              title="Version History"
+              leftIcon={<ClockIcon className="h-5 w-5" />}
+            />
+          )}
         </div>
 
-        {/* Form */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Title
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => { setTitle(e.target.value); markDirty(); }}
-                placeholder="Document title"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Category and Folder */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Category
-                </label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => {
-                    setCategoryId(e.target.value);
-                    setFolderId('');
-                    markDirty();
-                  }}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Folder (Optional)
-                </label>
-                <select
-                  value={folderId}
-                  onChange={(e) => { setFolderId(e.target.value); markDirty(); }}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={!categoryId || folders.length === 0}
-                >
-                  <option value="">No folder</option>
-                  {folders.map(folder => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Status
-              </label>
-              <div className="flex gap-4">
-                {(['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const).map(s => (
-                  <label key={s} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      value={s}
-                      checked={status === s}
-                      onChange={(e) => { setStatus(e.target.value as typeof status); markDirty(); }}
-                      className="text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{s}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* Forge AI Visibility (edit mode only) */}
-            {isEditMode && status === 'PUBLISHED' && (
-              <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
-                <div className="flex items-start gap-3 mb-4">
-                  <SparklesIcon className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Forge AI Visibility
-                    </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Control how Forge AI interacts with this document
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pl-8">
-                  {/* Private Option */}
-                  <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${aiPrivate
-                    ? 'bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
-                    } ${aiPrivateMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ai-visibility"
-                      checked={aiPrivate}
-                      onChange={() => setVisibilityPrivate()}
-                      disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
-                      className="text-red-600"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        🔒 Private
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Hidden from Forge completely
-                      </p>
-                    </div>
-                  </label>
-
-                  {/* Visible Option */}
-                  <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${!aiPrivate && !aiAccessible
-                    ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
-                    } ${aiPrivateMutation.isPending || aiAccessMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ai-visibility"
-                      checked={!aiPrivate && !aiAccessible}
-                      onChange={() => setVisibilityVisible()}
-                      disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
-                      className="text-blue-600"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        👁️ Visible
-                      </span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Forge can see for context, but not trained
-                      </p>
-                    </div>
-                  </label>
-
-                  {/* Trained Option */}
-                  <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${!aiPrivate && aiAccessible
-                    ? 'bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
-                    } ${aiPrivateMutation.isPending || aiAccessMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ai-visibility"
-                      checked={!aiPrivate && aiAccessible}
-                      onChange={() => setVisibilityTrained()}
-                      disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
-                      className="text-purple-600"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          ✨ Trained
-                        </span>
-                        {aiAccessible && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${hasEmbedding
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            }`}>
-                            {hasEmbedding ? 'Indexed' : 'Indexing...'}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Embedded and used in RAG responses
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            {/* Tags */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tags
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                  placeholder="Add tag"
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  onClick={handleAddTag}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
-                >
-                  Add
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="flex items-center gap-1 px-3 py-1 text-sm rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-red-600"
-                    >
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Change Note (edit mode only) */}
-            {isEditMode && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Change Note (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={changeNote}
-                  onChange={(e) => { setChangeNote(e.target.value); markDirty(); }}
-                  placeholder="Describe your changes"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            )}
-
-            {/* Content */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Content
-              </label>
-              {editorMode === 'wysiwyg' ? (
-                <RichTextEditor
-                  content={content}
-                  onChange={(val) => { setContent(val); markDirty(); }}
-                  placeholder="Start writing your document..."
-                  documentId={documentId}
-                />
-              ) : showPreview ? (
-                <div
-                  className="min-h-[400px] p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 prose prose-gray dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: renderPreview() }}
-                />
-              ) : (
-                <textarea
-                  value={content}
-                  onChange={(e) => { setContent(e.target.value); markDirty(); }}
-                  placeholder="Write your document in Markdown..."
-                  rows={20}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              )}
-            </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={creationSuccess ? 'primary' : 'primary'}
+            onClick={handleSave}
+            disabled={!title.trim() || !content.trim() || !categoryId || createMutation.isPending || updateMutation.isPending || (isEditMode && !isDirty) || creationSuccess}
+            title="Save (Cmd+S / Ctrl+S)"
+            className={creationSuccess ? 'bg-green-600 hover:bg-green-700' : ''}
+            leftIcon={<DocumentCheckIcon className="h-4 w-4" />}
+          >
+            {creationSuccess ? 'Created' : (isEditMode ? (isDirty ? 'Update' : 'Saved') : 'Create')}
+          </Button>
+          <div className="hidden lg:block text-xs text-gray-500 dark:text-gray-400">
+            <kbd className="px-1.5 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 font-mono text-xs">Cmd+S</kbd> to save
           </div>
         </div>
       </div>
+
+      {/* Form */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => { setTitle(e.target.value); markDirty(); }}
+              placeholder="Document title"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Category and Folder */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Category
+              </label>
+              <select
+                value={categoryId}
+                onChange={(e) => {
+                  setCategoryId(e.target.value);
+                  setFolderId('');
+                  markDirty();
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Folder (Optional)
+              </label>
+              <select
+                value={folderId}
+                onChange={(e) => { setFolderId(e.target.value); markDirty(); }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={!categoryId || folders.length === 0}
+              >
+                <option value="">No folder</option>
+                {folders.map(folder => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Status
+            </label>
+            <div className="flex gap-4">
+              {(['DRAFT', 'PUBLISHED', 'ARCHIVED'] as const).map(s => (
+                <label key={s} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    value={s}
+                    checked={status === s}
+                    onChange={(e) => { setStatus(e.target.value as typeof status); markDirty(); }}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Forge AI Visibility (edit mode only) */}
+          {isEditMode && status === 'PUBLISHED' && (
+            <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-purple-50 dark:bg-purple-900/20">
+              <div className="flex items-start gap-3 mb-4">
+                <SparklesIcon className="h-5 w-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Forge AI Visibility
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Control how Forge AI interacts with this document
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 pl-8">
+                {/* Private Option */}
+                <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${aiPrivate
+                  ? 'bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                  } ${aiPrivateMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
+                  <input
+                    type="radio"
+                    name="ai-visibility"
+                    checked={aiPrivate}
+                    onChange={() => setVisibilityPrivate()}
+                    disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
+                    className="text-red-600"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      🔒 Private
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Hidden from Forge completely
+                    </p>
+                  </div>
+                </label>
+
+                {/* Visible Option */}
+                <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${!aiPrivate && !aiAccessible
+                  ? 'bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                  } ${aiPrivateMutation.isPending || aiAccessMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
+                  <input
+                    type="radio"
+                    name="ai-visibility"
+                    checked={!aiPrivate && !aiAccessible}
+                    onChange={() => setVisibilityVisible()}
+                    disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
+                    className="text-blue-600"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      👁️ Visible
+                    </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Forge can see for context, but not trained
+                    </p>
+                  </div>
+                </label>
+
+                {/* Trained Option */}
+                <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${!aiPrivate && aiAccessible
+                  ? 'bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                  } ${aiPrivateMutation.isPending || aiAccessMutation.isPending ? 'opacity-50 cursor-wait' : ''}`}>
+                  <input
+                    type="radio"
+                    name="ai-visibility"
+                    checked={!aiPrivate && aiAccessible}
+                    onChange={() => setVisibilityTrained()}
+                    disabled={aiPrivateMutation.isPending || aiAccessMutation.isPending}
+                    className="text-purple-600"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        ✨ Trained
+                      </span>
+                      {aiAccessible && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${hasEmbedding
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          }`}>
+                          {hasEmbedding ? 'Indexed' : 'Indexing...'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Embedded and used in RAG responses
+                    </p>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Tags */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tags
+            </label>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                placeholder="Add tag"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button
+                onClick={handleAddTag}
+                size="md"
+              >
+                Add
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                <span
+                  key={tag}
+                  className="flex items-center gap-1 px-3 py-1 text-sm rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                >
+                  {tag}
+                  <button
+                    onClick={() => handleRemoveTag(tag)}
+                    className="hover:text-red-600"
+                  >
+                    <XMarkIcon className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Change Note (edit mode only) */}
+          {isEditMode && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Change Note (Optional)
+              </label>
+              <input
+                type="text"
+                value={changeNote}
+                onChange={(e) => { setChangeNote(e.target.value); markDirty(); }}
+                placeholder="Describe your changes"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+
+          {/* Content */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Content
+            </label>
+            {editorMode === 'wysiwyg' ? (
+              <RichTextEditor
+                content={content}
+                onChange={(val) => { setContent(val); markDirty(); }}
+                placeholder="Start writing your document..."
+                documentId={documentId}
+              />
+            ) : showPreview ? (
+              <div
+                className="min-h-[400px] p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 prose prose-gray dark:prose-invert max-w-none"
+                dangerouslySetInnerHTML={{ __html: renderPreview() }}
+              />
+            ) : (
+              <textarea
+                value={content}
+                onChange={(e) => { setContent(e.target.value); markDirty(); }}
+                placeholder="Write your document in Markdown..."
+                rows={20}
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <Modal
+        isOpen={true}
+        onClose={handleClose}
+        title={isEditMode ? 'Edit Document' : 'New Document'}
+        size="full"
+      >
+        {renderEditorContent()}
+      </Modal>
+
+      {/* Exit Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showExitConfirmation}
+        onClose={() => setShowExitConfirmation(false)}
+        onConfirm={() => onClose()}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to discard them?"
+        confirmText="Discard Changes"
+        cancelText="Keep Editing"
+        variant="danger"
+      />
 
       {showHistory && documentId && (
         <DocumentHistory
@@ -670,6 +706,6 @@ export function DocumentEditor({ documentId, onClose, onSave }: DocumentEditorPr
           }}
         />
       )}
-    </div>
+    </>
   );
 }

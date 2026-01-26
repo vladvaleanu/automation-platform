@@ -7,9 +7,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, UserListItem, Role, CreateUserData, UpdateUserData } from '../api/users';
 import { showError, showSuccess } from '../utils/toast.utils';
 import { getErrorMessage } from '../utils/error.utils';
+import { Button, Card, PageHeader, Badge, Modal, ModalFooter, Input, Select, FormField, EmptyState, LoadingState } from '../components/ui';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
-import { SkeletonLoader } from '../components/LoadingSpinner';
 
 interface UserRowProps {
   user: UserListItem;
@@ -52,55 +52,37 @@ const UserRow = memo(({ user, onEdit, onChangeRole, onResetPassword, onToggleSta
         {user.email}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 capitalize">
+        <Badge variant="info" size="sm">
           {user.roles[0]?.name || 'No role'}
-        </span>
+        </Badge>
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span
-          className={`px-2 py-1 text-xs font-medium rounded-full ${
-            user.isActive
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-          }`}
+        <Badge
+          variant={user.isActive ? 'success' : 'error'}
+          size="sm"
         >
           {user.isActive ? 'Active' : 'Inactive'}
-        </span>
+        </Badge>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
         {formatDate(user.lastLogin)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-        <button
-          onClick={() => onEdit(user)}
-          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-        >
+        <Button variant="link" size="sm" onClick={() => onEdit(user)}>
           Edit
-        </button>
-        <button
-          onClick={() => onChangeRole(user)}
-          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-        >
+        </Button>
+        <Button variant="link" size="sm" onClick={() => onChangeRole(user)}>
           Role
-        </button>
-        <button
-          onClick={() => onResetPassword(user)}
-          className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
-        >
+        </Button>
+        <Button variant="link" size="sm" onClick={() => onResetPassword(user)} className="text-yellow-600 dark:text-yellow-400">
           Reset
-        </button>
-        <button
-          onClick={() => onToggleStatus(user)}
-          className="text-orange-600 hover:text-orange-900 dark:text-orange-400 dark:hover:text-orange-300"
-        >
+        </Button>
+        <Button variant="link" size="sm" onClick={() => onToggleStatus(user)} className="text-orange-600 dark:text-orange-400">
           {user.isActive ? 'Disable' : 'Enable'}
-        </button>
-        <button
-          onClick={() => onDelete(user)}
-          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-        >
+        </Button>
+        <Button variant="link" size="sm" onClick={() => onDelete(user)} className="text-red-600 dark:text-red-400">
           Delete
-        </button>
+        </Button>
       </td>
     </tr>
   );
@@ -135,7 +117,6 @@ export default function SettingsUsersPage() {
     roleId: '',
   });
   const [editForm, setEditForm] = useState<UpdateUserData>({});
-  const [selectedRoleId, setSelectedRoleId] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
   // Fetch users
@@ -280,7 +261,6 @@ export default function SettingsUsersPage() {
 
   const handleChangeRole = useCallback((user: UserListItem) => {
     setSelectedUser(user);
-    setSelectedRoleId(user.roles[0]?.id || '');
     setShowRoleModal(true);
   }, []);
 
@@ -292,7 +272,7 @@ export default function SettingsUsersPage() {
 
   const handleToggleStatus = useCallback((user: UserListItem) => {
     confirm(
-      () => updateUserMutation.mutateAsync({ id: user.id, data: { isActive: !user.isActive } }),
+      async () => { await updateUserMutation.mutateAsync({ id: user.id, data: { isActive: !user.isActive } }); },
       {
         title: user.isActive ? 'Disable User' : 'Enable User',
         message: `Are you sure you want to ${user.isActive ? 'disable' : 'enable'} ${user.username}?`,
@@ -304,7 +284,7 @@ export default function SettingsUsersPage() {
 
   const handleDelete = useCallback((user: UserListItem) => {
     confirm(
-      () => deleteUserMutation.mutateAsync(user.id),
+      async () => { await deleteUserMutation.mutateAsync(user.id); },
       {
         title: 'Delete User',
         message: `Are you sure you want to delete ${user.username}? This action cannot be undone.`,
@@ -335,26 +315,21 @@ export default function SettingsUsersPage() {
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage users, roles, and permissions
-            </p>
-          </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
-          >
-            Add User
-          </button>
-        </div>
+        <PageHeader
+          title="User Management"
+          description="Manage users, roles, and permissions"
+          actions={
+            <Button onClick={() => setShowCreateModal(true)}>
+              Add User
+            </Button>
+          }
+        />
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+        <Card className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <input
+              <Input
                 type="text"
                 placeholder="Search users..."
                 value={searchQuery}
@@ -362,17 +337,15 @@ export default function SettingsUsersPage() {
                   setSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div>
-              <select
+              <Select
                 value={roleFilter}
                 onChange={(e) => {
                   setRoleFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="">All Roles</option>
                 {roles.map((role: Role) => (
@@ -380,39 +353,43 @@ export default function SettingsUsersPage() {
                     {role.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
-              <select
+              <Select
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
               >
                 <option value="">All Status</option>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
-              </select>
+              </Select>
             </div>
             <div className="flex items-center justify-end text-sm text-gray-500 dark:text-gray-400">
               {meta && `${meta.total} user${meta.total !== 1 ? 's' : ''} found`}
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Users Table */}
         {isLoading ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-            <SkeletonLoader lines={8} />
-          </div>
+          <Card className="p-6">
+            <LoadingState variant="skeleton" lines={8} />
+          </Card>
         ) : users.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-500 dark:text-gray-400">No users found</p>
-          </div>
+          <EmptyState
+            title="No users found"
+            description="Adjust your search or filters to see results"
+            action={{
+              label: 'Add User',
+              onClick: () => setShowCreateModal(true),
+            }}
+          />
         ) : (
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          <Card noPadding className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
@@ -454,323 +431,282 @@ export default function SettingsUsersPage() {
             {/* Pagination */}
             {meta && meta.totalPages > 1 && (
               <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Previous
-                </button>
+                </Button>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   Page {page} of {meta.totalPages}
                 </span>
-                <button
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage(Math.min(meta.totalPages, page + 1))}
                   disabled={page === meta.totalPages}
-                  className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                 >
                   Next
-                </button>
+                </Button>
               </div>
             )}
-          </div>
+          </Card>
         )}
       </div>
 
       {/* Create User Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-30" onClick={() => setShowCreateModal(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create New User</h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createUserMutation.mutate(createForm);
-                }}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.firstName}
-                      onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      value={createForm.lastName}
-                      onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={createForm.email}
-                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Username *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={createForm.username}
-                    onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={createForm.password}
-                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Role
-                  </label>
-                  <select
-                    value={createForm.roleId}
-                    onChange={(e) => setCreateForm({ ...createForm, roleId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  >
-                    <option value="">Default (Viewer)</option>
-                    {roles.map((role: Role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createUserMutation.isPending}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md"
-                  >
-                    {createUserMutation.isPending ? 'Creating...' : 'Create User'}
-                  </button>
-                </div>
-              </form>
-            </div>
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create New User"
+      >
+        <form
+          id="create-user-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            createUserMutation.mutate(createForm);
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="First Name">
+              <Input
+                type="text"
+                value={createForm.firstName}
+                onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Last Name">
+              <Input
+                type="text"
+                value={createForm.lastName}
+                onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })}
+              />
+            </FormField>
           </div>
-        </div>
-      )}
+          <FormField label="Email" required>
+            <Input
+              type="email"
+              required
+              value={createForm.email}
+              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Username" required>
+            <Input
+              type="text"
+              required
+              value={createForm.username}
+              onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Password" required>
+            <Input
+              type="password"
+              required
+              minLength={8}
+              value={createForm.password}
+              onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Role">
+            <Select
+              value={createForm.roleId}
+              onChange={(e) => setCreateForm({ ...createForm, roleId: e.target.value })}
+            >
+              <option value="">Default (Viewer)</option>
+              {roles.map((role: Role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </form>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="create-user-form"
+            isLoading={createUserMutation.isPending}
+          >
+            Create User
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-30" onClick={() => setShowEditModal(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Edit User</h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  updateUserMutation.mutate({ id: selectedUser.id, data: editForm });
-                }}
-                className="space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.firstName || ''}
-                      onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      value={editForm.lastName || ''}
-                      onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={editForm.email || ''}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.username || ''}
-                    onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowEditModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updateUserMutation.isPending}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md"
-                  >
-                    {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
+      <Modal
+        isOpen={showEditModal && !!selectedUser}
+        onClose={() => setShowEditModal(false)}
+        title="Edit User"
+      >
+        <form
+          id="edit-user-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (selectedUser) {
+              updateUserMutation.mutate({ id: selectedUser.id, data: editForm });
+            }
+          }}
+          className="space-y-4"
+        >
+          <div className="grid grid-cols-2 gap-4">
+            <FormField label="First Name">
+              <Input
+                type="text"
+                value={editForm.firstName || ''}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Last Name">
+              <Input
+                type="text"
+                value={editForm.lastName || ''}
+                onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+              />
+            </FormField>
           </div>
-        </div>
-      )}
+          <FormField label="Email">
+            <Input
+              type="email"
+              value={editForm.email || ''}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Username">
+            <Input
+              type="text"
+              value={editForm.username || ''}
+              onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+            />
+          </FormField>
+        </form>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setShowEditModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="edit-user-form"
+            isLoading={updateUserMutation.isPending}
+          >
+            Save Changes
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Change Role Modal */}
-      {showRoleModal && selectedUser && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-30" onClick={() => setShowRoleModal(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Change Role for {selectedUser.username}
-              </h3>
-              <div className="space-y-4">
-                <select
-                  value={selectedRoleId}
-                  onChange={(e) => setSelectedRoleId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">Select Role</option>
-                  {roles.map((role: Role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowRoleModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => assignRoleMutation.mutate({ userId: selectedUser.id, roleId: selectedRoleId })}
-                    disabled={!selectedRoleId || assignRoleMutation.isPending}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md"
-                  >
-                    {assignRoleMutation.isPending ? 'Assigning...' : 'Assign Role'}
-                  </button>
+      <Modal
+        isOpen={showRoleModal && !!selectedUser}
+        onClose={() => setShowRoleModal(false)}
+        title="Change User Role"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Select a new role for <span className="font-medium text-gray-900 dark:text-white">{selectedUser?.username}</span>
+          </p>
+          <div className="space-y-2">
+            {roles.map((role: Role) => (
+              <button
+                key={role.id}
+                onClick={() => {
+                  if (selectedUser) {
+                    assignRoleMutation.mutate({
+                      userId: selectedUser.id,
+                      roleId: role.id
+                    });
+                  }
+                }}
+                disabled={assignRoleMutation.isPending}
+                className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${selectedUser?.roles[0]?.id === role.id
+                  ? 'border-blue-500 ring-2 ring-blue-500 ring-opacity-50 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`font-medium ${selectedUser?.roles[0]?.id === role.id
+                    ? 'text-blue-700 dark:text-blue-400'
+                    : 'text-gray-900 dark:text-white'
+                    }`}>
+                    {role.name}
+                  </span>
+                  {selectedUser?.roles[0]?.id === role.id && (
+                    <span className="text-blue-600 dark:text-blue-400">
+                      ✓
+                    </span>
+                  )}
                 </div>
-              </div>
-            </div>
+                <p className={`text-xs mt-1 ${selectedUser?.roles[0]?.id === role.id
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                  {role.description}
+                </p>
+              </button>
+            ))}
           </div>
         </div>
-      )}
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setShowRoleModal(false)}>
+            Cancel
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Reset Password Modal */}
-      {showPasswordModal && selectedUser && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4">
-            <div className="fixed inset-0 bg-black opacity-30" onClick={() => setShowPasswordModal(false)} />
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Reset Password for {selectedUser.username}
-              </h3>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  resetPasswordMutation.mutate({ userId: selectedUser.id, password: newPassword });
-                }}
-                className="space-y-4"
-              >
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    New Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                    placeholder="Minimum 8 characters"
-                  />
-                </div>
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  This will log the user out of all devices.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordModal(false)}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={resetPasswordMutation.isPending}
-                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white rounded-md"
-                  >
-                    {resetPasswordMutation.isPending ? 'Resetting...' : 'Reset Password'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={showPasswordModal && !!selectedUser}
+        onClose={() => setShowPasswordModal(false)}
+        title="Reset Password"
+        size="sm"
+      >
+        <form
+          id="reset-password-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (selectedUser) {
+              resetPasswordMutation.mutate({
+                userId: selectedUser.id,
+                password: newPassword
+              });
+            }
+          }}
+          className="space-y-4"
+        >
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Enter a new password for <span className="font-medium text-gray-900 dark:text-white">{selectedUser?.username}</span>
+          </p>
+          <FormField label="New Password">
+            <Input
+              type="password"
+              required
+              minLength={8}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+            />
+          </FormField>
+        </form>
+        <ModalFooter>
+          <Button variant="ghost" onClick={() => setShowPasswordModal(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="reset-password-form"
+            isLoading={resetPasswordMutation.isPending}
+            variant="primary"
+          >
+            Reset Password
+          </Button>
+        </ModalFooter>
+      </Modal>
 
       {/* Confirmation Modal */}
       <ConfirmModal
@@ -781,8 +717,6 @@ export default function SettingsUsersPage() {
         message={confirmState.message}
         confirmText={confirmState.confirmText}
         cancelText={confirmState.cancelText}
-        variant={confirmState.variant}
-        isLoading={confirmState.isLoading}
       />
     </div>
   );

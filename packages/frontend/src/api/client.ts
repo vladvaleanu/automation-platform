@@ -147,6 +147,11 @@ class ApiClient {
     return response.data;
   }
 
+  async patch<T>(url: string, data?: any): Promise<ApiSuccessResponse<T>> {
+    const response = await this.client.patch<ApiSuccessResponse<T>>(url, data);
+    return response.data;
+  }
+
   async delete<T>(url: string, data?: any): Promise<ApiSuccessResponse<T>> {
     const response = await this.client.delete<ApiSuccessResponse<T>>(url, data ? { data } : undefined);
     return response.data;

@@ -60,32 +60,32 @@ const DynamicWidget: React.FC<DynamicWidgetProps> = ({
 
     if (error) {
         return (
-            <div className={`p-4 border border-red-200 bg-red-50 rounded-lg ${className}`}>
-                <div className="text-red-800 text-sm font-medium">Error loading {title}</div>
-                <div className="text-red-600 text-xs mt-1">{error}</div>
+            <div className={`p-4 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 rounded-lg ${className}`}>
+                <div className="text-red-800 dark:text-red-200 text-sm font-medium">Error loading {title}</div>
+                <div className="text-red-600 dark:text-red-400 text-xs mt-1">{error}</div>
             </div>
         );
     }
 
     if (!Component) {
         return (
-            <div className={`p-4 ${className} min-h-[150px] animate-pulse bg-white rounded-lg border border-gray-100`}>
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className={`p-4 ${className} min-h-[150px] animate-pulse bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700`}>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
                 <div className="space-y-2">
-                    <div className="h-3 bg-gray-100 rounded"></div>
-                    <div className="h-3 bg-gray-100 rounded w-5/6"></div>
-                    <div className="h-3 bg-gray-100 rounded w-4/6"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-5/6"></div>
+                    <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded w-4/6"></div>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className={`overflow-hidden rounded-lg bg-white shadow-sm border border-gray-100 ${className} h-full flex flex-col`}>
-            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                <h3 className="font-semibold text-gray-700 text-sm">{title}</h3>
+        <div className={`overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 ${className} h-full flex flex-col`}>
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+                <h3 className="font-semibold text-gray-700 dark:text-gray-200 text-sm">{title}</h3>
                 {refreshInterval && (
-                    <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
                         {refreshInterval / 1000}s
                     </span>
                 )}
@@ -93,8 +93,8 @@ const DynamicWidget: React.FC<DynamicWidgetProps> = ({
             <div className="p-4 flex-1 flex flex-col justify-center">
                 <Suspense fallback={
                     <div className="animate-pulse space-y-3">
-                        <div className="h-8 bg-gray-100 rounded w-1/2 mx-auto"></div>
-                        <div className="h-2 bg-gray-100 rounded w-3/4 mx-auto"></div>
+                        <div className="h-8 bg-gray-100 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
+                        <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
                     </div>
                 }>
                     <Component />

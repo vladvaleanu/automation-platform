@@ -94,17 +94,17 @@ export class AlertBatcherService {
 
         // Store alert in database immediately
         try {
-            await this.prisma.$executeRaw`
-                INSERT INTO ai_alerts (id, source, message, severity, labels, created_at)
-                VALUES (
-                    ${alert.id}::uuid,
-                    ${alert.source},
-                    ${alert.message},
-                    ${alert.severity},
-                    ${JSON.stringify(alert.labels)}::jsonb,
-                    ${alert.createdAt}
-                )
-            `;
+            await this.prisma.alert.create({
+                data: {
+                    id: alert.id,
+                    source: alert.source,
+                    message: alert.message,
+                    severity: alert.severity,
+                    labels: alert.labels, // Prisma Json type
+                    createdAt: alert.createdAt,
+                    incidentId: null
+                }
+            });
         } catch (error) {
             this.logger.error({ error, alert }, 'Failed to store alert in database');
             throw error;
@@ -178,17 +178,18 @@ export class AlertBatcherService {
      */
     private async createOrUpdateIncident(group: AlertGroup): Promise<Incident> {
         // Check for existing active incident with same source and labels
-        const existingIncidents = await this.prisma.$queryRaw<{ id: string }[]>`
-            SELECT id FROM ai_incidents
-            WHERE status IN ('active', 'investigating')
-            AND title LIKE ${`%${group.source}%`}
-            ORDER BY created_at DESC
-            LIMIT 1
-        `;
+        const existingIncident = await this.prisma.incident.findFirst({
+            where: {
+                status: { in: ['active', 'investigating'] },
+                title: { contains: group.source }, // Simple heuristic, might need robust matching
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, severity: true },
+        });
 
-        if (existingIncidents.length > 0) {
+        if (existingIncident) {
             // Update existing incident
-            return await this.addAlertsToIncident(existingIncidents[0].id, group);
+            return await this.addAlertsToIncident(existingIncident.id, group);
         }
 
         // Create new incident
@@ -199,49 +200,31 @@ export class AlertBatcherService {
      * Create a new incident from an alert group
      */
     private async createIncident(group: AlertGroup): Promise<Incident> {
-        const incidentId = this.generateId();
         const title = this.generateIncidentTitle(group);
         const impact = this.generateImpactDescription(group);
 
         try {
-            await this.prisma.$executeRaw`
-                INSERT INTO ai_incidents (id, title, severity, status, impact, alert_count, created_at, updated_at)
-                VALUES (
-                    ${incidentId}::uuid,
-                    ${title},
-                    ${group.severity},
-                    'active',
-                    ${impact},
-                    ${group.alerts.length},
-                    NOW(),
-                    NOW()
-                )
-            `;
-
-            // Link alerts to incident
-            const alertIds = group.alerts.map(a => a.id);
-            await this.prisma.$executeRaw`
-                UPDATE ai_alerts
-                SET incident_id = ${incidentId}::uuid
-                WHERE id = ANY(${alertIds}::uuid[])
-            `;
+            const incident = await this.prisma.incident.create({
+                data: {
+                    title,
+                    severity: group.severity,
+                    status: 'active',
+                    impact,
+                    alertCount: group.alerts.length,
+                    createdAt: new Date(),
+                    alerts: {
+                        connect: group.alerts.map(a => ({ id: a.id }))
+                    }
+                },
+                include: { alerts: true }
+            });
 
             this.logger.info(
-                { incidentId, title, alertCount: group.alerts.length },
+                { incidentId: incident.id, title, alertCount: group.alerts.length },
                 'Created new incident'
             );
 
-            return {
-                id: incidentId,
-                title,
-                severity: group.severity,
-                status: 'active',
-                impact,
-                alertCount: group.alerts.length,
-                hasForgeAnalysis: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            };
+            return this.mapPrismaIncidentToType(incident);
         } catch (error) {
             this.logger.error({ error, group }, 'Failed to create incident');
             throw error;
@@ -254,28 +237,35 @@ export class AlertBatcherService {
     private async addAlertsToIncident(incidentId: string, group: AlertGroup): Promise<Incident> {
         try {
             // Link alerts to incident
-            const alertIds = group.alerts.map(a => a.id);
-            await this.prisma.$executeRaw`
-                UPDATE ai_alerts
-                SET incident_id = ${incidentId}::uuid
-                WHERE id = ANY(${alertIds}::uuid[])
-            `;
+            await this.prisma.alert.updateMany({
+                where: { id: { in: group.alerts.map(a => a.id) } },
+                data: { incidentId }
+            });
+
+            // Get current incident to check severity
+            const currentIncident = await this.prisma.incident.findUnique({
+                where: { id: incidentId }
+            });
+
+            if (!currentIncident) throw new Error('Incident not found');
+
+            // Determine new severity
+            let newSeverity = currentIncident.severity;
+            if (SEVERITY_PRIORITY[group.severity] > SEVERITY_PRIORITY[currentIncident.severity]) {
+                newSeverity = group.severity;
+            }
 
             // Update incident alert count and severity
-            await this.prisma.$executeRaw`
-                UPDATE ai_incidents
-                SET
-                    alert_count = (SELECT COUNT(*) FROM ai_alerts WHERE incident_id = ${incidentId}::uuid),
-                    severity = CASE
-                        WHEN ${group.severity} = 'critical' THEN 'critical'
-                        WHEN severity = 'critical' THEN 'critical'
-                        WHEN ${group.severity} = 'warning' THEN 'warning'
-                        WHEN severity = 'warning' THEN 'warning'
-                        ELSE 'info'
-                    END,
-                    updated_at = NOW()
-                WHERE id = ${incidentId}::uuid
-            `;
+            const alertCount = await this.prisma.alert.count({ where: { incidentId } });
+
+            await this.prisma.incident.update({
+                where: { id: incidentId },
+                data: {
+                    alertCount,
+                    severity: newSeverity,
+                    updatedAt: new Date()
+                }
+            });
 
             this.logger.info(
                 { incidentId, newAlerts: group.alerts.length },
@@ -283,8 +273,8 @@ export class AlertBatcherService {
             );
 
             // Fetch updated incident
-            const incidents = await this.getIncidentById(incidentId);
-            return incidents!;
+            const updated = await this.getIncidentById(incidentId);
+            return updated!;
         } catch (error) {
             this.logger.error({ error, incidentId }, 'Failed to add alerts to incident');
             throw error;
@@ -335,123 +325,58 @@ export class AlertBatcherService {
      * Get incident by ID with alerts
      */
     async getIncidentById(id: string): Promise<Incident | null> {
-        const incidents = await this.prisma.$queryRaw<{
-            id: string;
-            title: string;
-            severity: AlertSeverity;
-            status: string;
-            impact: string | null;
-            alert_count: number;
-            has_forge_analysis: boolean;
-            created_at: Date;
-            updated_at: Date;
-            resolved_at: Date | null;
-        }[]>`
-            SELECT * FROM ai_incidents WHERE id = ${id}::uuid
-        `;
+        const incident = await this.prisma.incident.findUnique({
+            where: { id },
+            include: {
+                alerts: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        });
 
-        if (incidents.length === 0) {
+        if (!incident) {
             return null;
         }
 
-        const incident = incidents[0];
-        const alerts = await this.getAlertsByIncidentId(id);
-
-        return {
-            id: incident.id,
-            title: incident.title,
-            severity: incident.severity,
-            status: incident.status as Incident['status'],
-            impact: incident.impact,
-            alertCount: incident.alert_count,
-            hasForgeAnalysis: incident.has_forge_analysis,
-            createdAt: incident.created_at,
-            updatedAt: incident.updated_at,
-            resolvedAt: incident.resolved_at,
-            alerts,
-        };
+        return this.mapPrismaIncidentToType(incident);
     }
 
     /**
      * Get all active incidents
      */
     async getActiveIncidents(includeAlerts = false): Promise<Incident[]> {
-        const incidents = await this.prisma.$queryRaw<{
-            id: string;
-            title: string;
-            severity: AlertSeverity;
-            status: string;
-            impact: string | null;
-            alert_count: number;
-            has_forge_analysis: boolean;
-            created_at: Date;
-            updated_at: Date;
-            resolved_at: Date | null;
-        }[]>`
-            SELECT * FROM ai_incidents
-            WHERE status IN ('active', 'investigating')
-            ORDER BY
-                CASE severity
-                    WHEN 'critical' THEN 1
-                    WHEN 'warning' THEN 2
-                    ELSE 3
-                END,
-                created_at DESC
-        `;
+        const incidents = await this.prisma.incident.findMany({
+            where: {
+                status: { in: ['active', 'investigating'] }
+            },
+            orderBy: { createdAt: 'desc' }, // Basic sort, refinement in memory if needed
+            include: {
+                alerts: includeAlerts
+            }
+        });
 
-        const result: Incident[] = [];
-        for (const incident of incidents) {
-            result.push({
-                id: incident.id,
-                title: incident.title,
-                severity: incident.severity,
-                status: incident.status as Incident['status'],
-                impact: incident.impact,
-                alertCount: incident.alert_count,
-                hasForgeAnalysis: incident.has_forge_analysis,
-                createdAt: incident.created_at,
-                updatedAt: incident.updated_at,
-                resolvedAt: incident.resolved_at,
-                alerts: includeAlerts ? await this.getAlertsByIncidentId(incident.id) : undefined,
-            });
-        }
+        // Manual sort to match severity priority
+        incidents.sort((a, b) => {
+            const pA = SEVERITY_PRIORITY[a.severity] || 0;
+            const pB = SEVERITY_PRIORITY[b.severity] || 0;
+            if (pA !== pB) return pB - pA; // Descending priority
+            return b.createdAt.getTime() - a.createdAt.getTime();
+        });
 
-        return result;
+        return incidents.map(i => this.mapPrismaIncidentToType(i));
     }
 
     /**
      * Get all incidents (including resolved)
      */
     async getAllIncidents(limit = 50): Promise<Incident[]> {
-        const incidents = await this.prisma.$queryRaw<{
-            id: string;
-            title: string;
-            severity: AlertSeverity;
-            status: string;
-            impact: string | null;
-            alert_count: number;
-            has_forge_analysis: boolean;
-            created_at: Date;
-            updated_at: Date;
-            resolved_at: Date | null;
-        }[]>`
-            SELECT * FROM ai_incidents
-            ORDER BY created_at DESC
-            LIMIT ${limit}
-        `;
+        const incidents = await this.prisma.incident.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            include: { alerts: false } // Default no alerts for list
+        });
 
-        return incidents.map(incident => ({
-            id: incident.id,
-            title: incident.title,
-            severity: incident.severity,
-            status: incident.status as Incident['status'],
-            impact: incident.impact,
-            alertCount: incident.alert_count,
-            hasForgeAnalysis: incident.has_forge_analysis,
-            createdAt: incident.created_at,
-            updatedAt: incident.updated_at,
-            resolvedAt: incident.resolved_at,
-        }));
+        return incidents.map(i => this.mapPrismaIncidentToType(i));
     }
 
     /**
@@ -463,21 +388,20 @@ export class AlertBatcherService {
         hasForgeAnalysis?: boolean
     ): Promise<Incident | null> {
         try {
+            const data: any = {
+                status,
+                updatedAt: new Date(),
+                resolvedAt: (status === 'resolved' || status === 'dismissed') ? new Date() : null
+            };
+
             if (hasForgeAnalysis !== undefined) {
-                await this.prisma.$executeRaw`
-                    UPDATE ai_incidents
-                    SET status = ${status}, has_forge_analysis = ${hasForgeAnalysis}, updated_at = NOW(),
-                        resolved_at = CASE WHEN ${status} IN ('resolved', 'dismissed') THEN NOW() ELSE NULL END
-                    WHERE id = ${id}::uuid
-                `;
-            } else {
-                await this.prisma.$executeRaw`
-                    UPDATE ai_incidents
-                    SET status = ${status}, updated_at = NOW(),
-                        resolved_at = CASE WHEN ${status} IN ('resolved', 'dismissed') THEN NOW() ELSE NULL END
-                    WHERE id = ${id}::uuid
-                `;
+                data.hasForgeAnalysis = hasForgeAnalysis;
             }
+
+            await this.prisma.incident.update({
+                where: { id },
+                data
+            });
 
             return await this.getIncidentById(id);
         } catch (error) {
@@ -490,29 +414,47 @@ export class AlertBatcherService {
      * Get alerts by incident ID
      */
     private async getAlertsByIncidentId(incidentId: string): Promise<RawAlert[]> {
-        const alerts = await this.prisma.$queryRaw<{
-            id: string;
-            source: string;
-            message: string;
-            severity: AlertSeverity;
-            labels: Record<string, string>;
-            incident_id: string | null;
-            created_at: Date;
-        }[]>`
-            SELECT * FROM ai_alerts
-            WHERE incident_id = ${incidentId}::uuid
-            ORDER BY created_at DESC
-        `;
+        const alerts = await this.prisma.alert.findMany({
+            where: { incidentId },
+            orderBy: { createdAt: 'desc' }
+        });
 
         return alerts.map(alert => ({
             id: alert.id,
             source: alert.source,
             message: alert.message,
             severity: alert.severity,
-            labels: alert.labels,
-            incidentId: alert.incident_id,
-            createdAt: alert.created_at,
+            labels: alert.labels as Record<string, string>,
+            incidentId: alert.incidentId,
+            createdAt: alert.createdAt,
         }));
+    }
+
+    /**
+     * Helper to map Prisma Incident to Internal Type
+     */
+    private mapPrismaIncidentToType(incident: any): Incident {
+        return {
+            id: incident.id,
+            title: incident.title,
+            severity: incident.severity,
+            status: incident.status as Incident['status'],
+            impact: incident.impact,
+            alertCount: incident.alertCount,
+            hasForgeAnalysis: incident.hasForgeAnalysis,
+            createdAt: incident.createdAt,
+            updatedAt: incident.updatedAt,
+            resolvedAt: incident.resolvedAt,
+            alerts: incident.alerts ? incident.alerts.map((a: any) => ({
+                id: a.id,
+                source: a.source,
+                message: a.message,
+                severity: a.severity,
+                labels: a.labels as Record<string, string>,
+                incidentId: a.incidentId,
+                createdAt: a.createdAt,
+            })) : undefined,
+        };
     }
 
     /**

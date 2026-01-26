@@ -9,8 +9,9 @@ import { modulesApi } from '../api/modules';
 import { Module, ModuleStatus } from '../types/module.types';
 import { getErrorMessage } from '../utils/error.utils';
 import { showError, showSuccess, showInfo } from '../utils/toast.utils';
-import { SkeletonLoader } from '../components/LoadingSpinner';
+
 import { useConfirm } from '../hooks/useConfirm';
+import { Button, Badge, Card, Modal, ModalFooter, PageHeader, EmptyState, LoadingState } from '../components/ui';
 import ConfirmModal from '../components/ConfirmModal';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -24,7 +25,7 @@ function ModulesPageContent() {
   };
 
   // Fetch modules
-  const { data: modulesData, isLoading, error, refetch } = useQuery({
+  const { data: modulesData, isLoading, error } = useQuery({
     queryKey: ['modules'],
     queryFn: async () => {
       console.log('[ModulesPage] Fetching modules from API...');
@@ -50,7 +51,7 @@ function ModulesPageContent() {
   // Enable module mutation - simplified without optimistic updates
   const enableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.enable(name),
-    onSuccess: async (data, name) => {
+    onSuccess: async (_data, name) => {
       // Refetch modules after successful enable
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['modules'] }),
@@ -69,7 +70,7 @@ function ModulesPageContent() {
   // Disable module mutation - simplified without optimistic updates
   const disableMutation = useMutation({
     mutationFn: (name: string) => modulesApi.disable(name),
-    onSuccess: async (data, name) => {
+    onSuccess: async (_data, name) => {
       // Refetch modules after successful disable
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['modules'] }),
@@ -85,33 +86,38 @@ function ModulesPageContent() {
     },
   });
 
-  // Move status styles outside component to avoid recreation
-  const STATUS_STYLES = useMemo(() => ({
-    [ModuleStatus.ENABLED]: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-    [ModuleStatus.DISABLED]: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
-    [ModuleStatus.INSTALLED]: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
-    [ModuleStatus.REGISTERED]: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
-    [ModuleStatus.INSTALLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
-    [ModuleStatus.ENABLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
-    [ModuleStatus.DISABLING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
-    [ModuleStatus.UPDATING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
-    [ModuleStatus.REMOVING]: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
-    [ModuleStatus.ERROR]: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
-  }), []);
+  // Map status to badge variant
+  const getStatusVariant = useCallback((status: ModuleStatus): 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'purple' => {
+    switch (status) {
+      case ModuleStatus.ENABLED: return 'success';
+      case ModuleStatus.DISABLED: return 'neutral';
+      case ModuleStatus.INSTALLED: return 'purple';
+      case ModuleStatus.REGISTERED: return 'info';
+      case ModuleStatus.INSTALLING:
+      case ModuleStatus.ENABLING:
+      case ModuleStatus.DISABLING:
+      case ModuleStatus.UPDATING: return 'warning';
+      case ModuleStatus.REMOVING:
+      case ModuleStatus.ERROR: return 'error';
+      default: return 'neutral';
+    }
+  }, []);
 
   const getStatusBadge = useCallback((status: ModuleStatus) => {
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[status]}`}>
+      <Badge variant={getStatusVariant(status)} size="sm">
         {status}
-      </span>
+      </Badge>
     );
-  }, [STATUS_STYLES]);
+  }, [getStatusVariant]);
 
   const handleToggleModule = (module: Module) => {
     if (module.status === ModuleStatus.ENABLED) {
       // Disabling - use warning variant
       confirm(
-        () => disableMutation.mutateAsync(module.name),
+        async () => {
+          await disableMutation.mutateAsync(module.name);
+        },
         {
           title: 'Disable Module',
           message: `Are you sure you want to disable "${module.displayName}"? This will remove its routes and features from the sidebar.`,
@@ -123,7 +129,9 @@ function ModulesPageContent() {
       // Enabling - use info variant (less risky)
       // REGISTERED modules will be auto-installed by the backend
       confirm(
-        () => enableMutation.mutateAsync(module.name),
+        async () => {
+          await enableMutation.mutateAsync(module.name);
+        },
         {
           title: 'Enable Module',
           message: `Enable "${module.displayName}"? Its routes and features will be added to the sidebar.`,
@@ -140,12 +148,12 @@ function ModulesPageContent() {
     return (
       <div className="p-8">
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-            <SkeletonLoader lines={3} />
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-            <SkeletonLoader lines={5} />
-          </div>
+          <Card>
+            <LoadingState variant="skeleton" lines={3} />
+          </Card>
+          <Card>
+            <LoadingState variant="skeleton" lines={5} />
+          </Card>
         </div>
       </div>
     );
@@ -171,70 +179,51 @@ function ModulesPageContent() {
 
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Modules</h1>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Manage installed automation modules
-            </p>
-          </div>
-          <button
-            onClick={handleInstallModule}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Install Module
-          </button>
-        </div>
+        <PageHeader
+          title="Modules"
+          description="Manage installed automation modules"
+          actions={
+            <Button onClick={handleInstallModule}>
+              Install Module
+            </Button>
+          }
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <Card>
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Modules</div>
             <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{moduleCounts.total}</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Enabled</div>
             <div className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">
               {moduleCounts.enabled}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Disabled</div>
             <div className="mt-1 text-2xl font-semibold text-gray-600 dark:text-gray-400">
               {moduleCounts.disabled}
             </div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          </Card>
+          <Card>
             <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Registered</div>
             <div className="mt-1 text-2xl font-semibold text-blue-600 dark:text-blue-400">
               {moduleCounts.registered}
             </div>
-          </div>
+          </Card>
         </div>
 
         {/* Modules list */}
         {modules.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No modules</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Get started by installing your first module.
-            </p>
-          </div>
+          <EmptyState
+            title="No modules"
+            description="Get started by installing your first module."
+            action={{ label: "Install Module", onClick: handleInstallModule }}
+          />
         ) : (
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          <Card noPadding className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
@@ -281,93 +270,76 @@ function ModulesPageContent() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       {(module.status === ModuleStatus.ENABLED || module.status === ModuleStatus.DISABLED || module.status === ModuleStatus.INSTALLED || module.status === ModuleStatus.REGISTERED) && (
-                        <button
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={module.status === ModuleStatus.ENABLED
+                            ? 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20'
+                            : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20'
+                          }
                           onClick={() => handleToggleModule(module)}
                           disabled={enableMutation.isPending || disableMutation.isPending}
-                          className={`px-3 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${module.status === ModuleStatus.ENABLED
-                              ? 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 focus:ring-red-500'
-                              : 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 focus:ring-green-500'
-                            }`}
+                          isLoading={(enableMutation.isPending || disableMutation.isPending) && (enableMutation.variables === module.name || disableMutation.variables === module.name)}
                         >
-                          {(enableMutation.isPending || disableMutation.isPending) ? (
-                            <span className="flex items-center gap-2">
-                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                              {module.status === ModuleStatus.ENABLED ? 'Disabling...' : 'Enabling...'}
-                            </span>
-                          ) : (
-                            module.status === ModuleStatus.ENABLED ? 'Disable' : 'Enable'
-                          )}
-                        </button>
+                          {module.status === ModuleStatus.ENABLED ? 'Disable' : 'Enable'}
+                        </Button>
                       )}
-                      <button
+                      <Button
+                        size="sm"
+                        variant="link"
                         onClick={() => setSelectedModule(module)}
-                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                       >
                         Details
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         )}
 
-        {/* Module details modal (simplified) */}
-        {selectedModule && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {selectedModule.displayName}
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      v{selectedModule.version}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedModule(null)}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                  >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{selectedModule.description}</p>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</h3>
-                    {getStatusBadge(selectedModule.status)}
-                  </div>
-
-                  {selectedModule.manifest?.routes && selectedModule.manifest.routes.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Routes</h3>
-                      <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                        {selectedModule.manifest.routes.map((route, idx) => (
-                          <li key={idx} className="font-mono">
-                            {route.method} {route.path}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+        {/* Module details modal */}
+        <Modal
+          isOpen={!!selectedModule}
+          onClose={() => setSelectedModule(null)}
+          title={selectedModule?.displayName || 'Module Details'}
+        >
+          {selectedModule && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  v{selectedModule.version}
+                </span>
+                {getStatusBadge(selectedModule.status)}
               </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{selectedModule.description}</p>
+              </div>
+
+              {selectedModule.manifest?.routes && selectedModule.manifest.routes.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">API Routes</h3>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded p-3">
+                    <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                      {selectedModule.manifest.routes.map((route, idx) => (
+                        <li key={idx} className="font-mono flex gap-2">
+                          <span className="font-bold text-gray-700 dark:text-gray-300">{route.method}</span>
+                          <span>{route.path}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+          <ModalFooter>
+            <Button onClick={() => setSelectedModule(null)}>Close</Button>
+          </ModalFooter>
+        </Modal>
       </div>
 
       {/* Confirmation Modal */}

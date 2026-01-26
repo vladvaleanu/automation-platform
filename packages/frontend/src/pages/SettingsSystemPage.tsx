@@ -9,7 +9,7 @@ import { showError, showSuccess } from '../utils/toast.utils';
 import { getErrorMessage } from '../utils/error.utils';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
-import { SkeletonLoader } from '../components/LoadingSpinner';
+import { Button, Card, CardTitle, PageHeader, EmptyState, LoadingState } from '../components/ui';
 
 export default function SettingsSystemPage() {
   const queryClient = useQueryClient();
@@ -96,7 +96,9 @@ export default function SettingsSystemPage() {
 
   const handleClearCache = () => {
     confirm(
-      () => clearCacheMutation.mutateAsync(),
+      async () => {
+        await clearCacheMutation.mutateAsync();
+      },
       {
         title: 'Clear Cache',
         message: 'Are you sure you want to clear all caches? This may temporarily affect performance.',
@@ -108,7 +110,9 @@ export default function SettingsSystemPage() {
 
   const handleRunCleanup = () => {
     confirm(
-      () => cleanupMutation.mutateAsync(),
+      async () => {
+        await cleanupMutation.mutateAsync();
+      },
       {
         title: 'Run Maintenance Cleanup',
         message: 'This will delete old job executions (>30 days), expired sessions, and old audit logs (>90 days). Continue?',
@@ -154,30 +158,28 @@ export default function SettingsSystemPage() {
     <div className="p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">System Settings</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Monitor system health and perform maintenance tasks
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleClearCache}
-              disabled={clearCacheMutation.isPending}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-            >
-              {clearCacheMutation.isPending ? 'Clearing...' : 'Clear Cache'}
-            </button>
-            <button
-              onClick={handleRunCleanup}
-              disabled={cleanupMutation.isPending}
-              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white rounded-md"
-            >
-              {cleanupMutation.isPending ? 'Running...' : 'Run Cleanup'}
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="System Settings"
+          description="Monitor system health and perform maintenance tasks"
+          actions={
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleClearCache}
+                disabled={clearCacheMutation.isPending}
+              >
+                {clearCacheMutation.isPending ? 'Clearing...' : 'Clear Cache'}
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleRunCleanup}
+                disabled={cleanupMutation.isPending}
+              >
+                {cleanupMutation.isPending ? 'Running...' : 'Run Cleanup'}
+              </Button>
+            </div>
+          }
+        />
 
         {/* Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-700">
@@ -186,11 +188,10 @@ export default function SettingsSystemPage() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
-                  activeTab === tab
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
+                className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
               >
                 {tab === 'audit' ? 'Audit Logs' : tab}
               </button>
@@ -202,16 +203,14 @@ export default function SettingsSystemPage() {
         {activeTab === 'overview' && (
           <>
             {systemLoading ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-                <SkeletonLoader lines={8} />
-              </div>
+              <Card>
+                <LoadingState variant="skeleton" lines={8} />
+              </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* System Info */}
-                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    System Information
-                  </h3>
+                <Card>
+                  <CardTitle className="mb-4">System Information</CardTitle>
                   <dl className="space-y-3">
                     <div className="flex justify-between">
                       <dt className="text-sm text-gray-500 dark:text-gray-400">Environment</dt>
@@ -244,13 +243,11 @@ export default function SettingsSystemPage() {
                       </dd>
                     </div>
                   </dl>
-                </div>
+                </Card>
 
                 {/* Memory Usage */}
-                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    Memory Usage
-                  </h3>
+                <Card>
+                  <CardTitle className="mb-4">Memory Usage</CardTitle>
                   <dl className="space-y-3">
                     <div className="flex justify-between">
                       <dt className="text-sm text-gray-500 dark:text-gray-400">Heap Used</dt>
@@ -286,13 +283,11 @@ export default function SettingsSystemPage() {
                       </div>
                     )}
                   </dl>
-                </div>
+                </Card>
 
                 {/* Database Stats */}
-                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    Database Statistics
-                  </h3>
+                <Card>
+                  <CardTitle className="mb-4">Database Statistics</CardTitle>
                   <dl className="space-y-3">
                     <div className="flex justify-between">
                       <dt className="text-sm text-gray-500 dark:text-gray-400">Users</dt>
@@ -319,14 +314,12 @@ export default function SettingsSystemPage() {
                       </dd>
                     </div>
                   </dl>
-                </div>
+                </Card>
 
                 {/* Queue Status */}
                 {system?.queue && (
-                  <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                      Job Queue Status
-                    </h3>
+                  <Card>
+                    <CardTitle className="mb-4">Job Queue Status</CardTitle>
                     <dl className="space-y-3">
                       <div className="flex justify-between">
                         <dt className="text-sm text-gray-500 dark:text-gray-400">Workers</dt>
@@ -359,26 +352,23 @@ export default function SettingsSystemPage() {
                         </dd>
                       </div>
                     </dl>
-                  </div>
+                  </Card>
                 )}
 
                 {/* Recent Executions (Last 24h) */}
-                <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                    Executions (24h)
-                  </h3>
+                <Card>
+                  <CardTitle className="mb-4">Executions (24h)</CardTitle>
                   <dl className="space-y-3">
                     {Object.entries(system?.recentExecutions || {}).map(([status, count]) => (
                       <div key={status} className="flex justify-between">
                         <dt className="text-sm text-gray-500 dark:text-gray-400 capitalize">
                           {status}
                         </dt>
-                        <dd className={`text-sm font-medium ${
-                          status === 'completed' ? 'text-green-600 dark:text-green-400' :
+                        <dd className={`text-sm font-medium ${status === 'completed' ? 'text-green-600 dark:text-green-400' :
                           status === 'failed' ? 'text-red-600 dark:text-red-400' :
-                          status === 'running' ? 'text-blue-600 dark:text-blue-400' :
-                          'text-gray-900 dark:text-white'
-                        }`}>
+                            status === 'running' ? 'text-blue-600 dark:text-blue-400' :
+                              'text-gray-900 dark:text-white'
+                          }`}>
                           {count}
                         </dd>
                       </div>
@@ -387,7 +377,7 @@ export default function SettingsSystemPage() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">No executions in the last 24 hours</p>
                     )}
                   </dl>
-                </div>
+                </Card>
               </div>
             )}
           </>
@@ -397,15 +387,16 @@ export default function SettingsSystemPage() {
         {activeTab === 'modules' && (
           <>
             {modulesLoading ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-                <SkeletonLoader lines={6} />
-              </div>
+              <Card>
+                <LoadingState variant="skeleton" lines={6} />
+              </Card>
             ) : !modules || modules.length === 0 ? (
-              <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-                <p className="text-gray-500 dark:text-gray-400">No modules installed</p>
-              </div>
+              <EmptyState
+                title="No modules installed"
+                description="Install modules to add functionality to NxForge"
+              />
             ) : (
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+              <Card noPadding className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
@@ -441,11 +432,10 @@ export default function SettingsSystemPage() {
                           {module.version}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            module.status === 'ENABLED'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${module.status === 'ENABLED'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
+                            }`}>
                             {module.status}
                           </span>
                         </td>
@@ -459,7 +449,7 @@ export default function SettingsSystemPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </Card>
             )}
           </>
         )}
@@ -468,15 +458,16 @@ export default function SettingsSystemPage() {
         {activeTab === 'audit' && (
           <>
             {auditLoading ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-                <SkeletonLoader lines={10} />
-              </div>
+              <Card>
+                <LoadingState variant="skeleton" lines={10} />
+              </Card>
             ) : !auditData?.data || auditData.data.length === 0 ? (
-              <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-                <p className="text-gray-500 dark:text-gray-400">No audit logs found</p>
-              </div>
+              <EmptyState
+                title="No audit logs found"
+                description="System activities will be logged here"
+              />
             ) : (
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+              <Card noPadding className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-900">
                     <tr>
@@ -517,11 +508,10 @@ export default function SettingsSystemPage() {
                           {log.resourceId && <span className="text-xs ml-1">({log.resourceId.slice(0, 8)}...)</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            log.outcome === 'success'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${log.outcome === 'success'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                            }`}>
                             {log.outcome}
                           </span>
                         </td>
@@ -536,26 +526,28 @@ export default function SettingsSystemPage() {
                 {/* Pagination */}
                 {auditData.meta && auditData.meta.totalPages > 1 && (
                   <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setAuditPage(Math.max(1, auditPage - 1))}
                       disabled={auditPage === 1}
-                      className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       Previous
-                    </button>
+                    </Button>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       Page {auditPage} of {auditData.meta.totalPages}
                     </span>
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setAuditPage(Math.min(auditData.meta.totalPages, auditPage + 1))}
                       disabled={auditPage === auditData.meta.totalPages}
-                      className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       Next
-                    </button>
+                    </Button>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
           </>
         )}

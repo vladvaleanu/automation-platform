@@ -4,13 +4,14 @@
 
 import { useState, useCallback, memo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { getErrorMessage } from '../utils/error.utils';
 import { showError, showSuccess } from '../utils/toast.utils';
 import { useConfirm } from '../hooks/useConfirm';
 import ConfirmModal from '../components/ConfirmModal';
-import { SkeletonLoader } from '../components/LoadingSpinner';
+import { Button, Card, PageHeader, Badge, EmptyState, LoadingState } from '../components/ui';
+import { BriefcaseIcon } from '@heroicons/react/24/outline';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
@@ -60,42 +61,39 @@ const JobRow = memo(({ job, onExecute, onToggle, onDelete }: JobRowProps) => {
         {job.schedule || 'Manual'}
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
-        <span
-          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-            job.enabled
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-              : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400'
-          }`}
-        >
+        <Badge variant={job.enabled ? 'success' : 'neutral'}>
           {job.enabled ? 'Enabled' : 'Disabled'}
-        </span>
+        </Badge>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => onExecute(job.id, job.name)}
           disabled={!job.enabled}
-          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Run
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => onToggle(job)}
-          className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
+          className={job.enabled ? 'text-yellow-600 hover:text-yellow-900 dark:text-yellow-400' : ''}
         >
           {job.enabled ? 'Disable' : 'Enable'}
-        </button>
-        <Link
-          to={`/jobs/${job.id}/executions`}
-          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-        >
-          History
+        </Button>
+        <Link to={`/jobs/${job.id}/executions`}>
+          <Button variant="ghost" size="sm">
+            History
+          </Button>
         </Link>
-        <button
+        <Button
+          variant="danger"
+          size="sm"
           onClick={() => onDelete(job.id, job.name)}
-          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
         >
           Delete
-        </button>
+        </Button>
       </td>
     </tr>
   );
@@ -105,6 +103,7 @@ JobRow.displayName = 'JobRow';
 
 export default function JobsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const { confirm, confirmState, handleConfirm, handleClose } = useConfirm();
 
@@ -216,72 +215,64 @@ export default function JobsPage() {
 
   return (
     <div className="p-8">
-    
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Jobs</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Manage automation jobs and schedules
-            </p>
-          </div>
-          <Link
-            to="/jobs/new"
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium"
-          >
-            Create Job
-          </Link>
-        </div>
+        <PageHeader
+          title="Jobs"
+          description="Manage automation jobs and schedules"
+          actions={
+            <Button onClick={() => navigate('/jobs/new')}>
+              Create Job
+            </Button>
+          }
+        />
 
         {/* Filters */}
-        <div className="flex space-x-2">
-          {(['all', 'enabled', 'disabled'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
-                filter === f
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
+        <Card className="p-4">
+          <div className="flex space-x-2">
+            {(['all', 'enabled', 'disabled'] as const).map((f) => (
+              <Button
+                key={f}
+                variant={filter === f ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => setFilter(f)}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </Card>
 
         {/* Loading */}
         {isLoading && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
-            <SkeletonLoader lines={5} />
-          </div>
+          <Card>
+            <LoadingState variant="skeleton" lines={5} />
+          </Card>
         )}
 
         {/* Error */}
         {error && (
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-4">
             <p className="text-sm text-red-800 dark:text-red-200">
-              Failed to load jobs: {(error as any).message}
+              Failed to load jobs: {getErrorMessage(error)}
             </p>
           </div>
         )}
 
         {/* Jobs List */}
         {!isLoading && !error && jobs.length === 0 && (
-          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-500 dark:text-gray-400">No jobs found</p>
-            <Link
-              to="/jobs/new"
-              className="mt-4 inline-block text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Create your first job
-            </Link>
-          </div>
+          <Card>
+            <EmptyState
+              icon={<BriefcaseIcon className="h-12 w-12" />}
+              title="No jobs found"
+              description="Get started by creating your first automation job"
+              action={{ label: 'Create your first job', onClick: () => navigate('/jobs/new') }}
+            />
+          </Card>
         )}
 
         {!isLoading && !error && jobs.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          <Card noPadding className="overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
@@ -314,7 +305,7 @@ export default function JobsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         )}
       </div>
 

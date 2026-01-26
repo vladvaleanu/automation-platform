@@ -73,7 +73,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
         FROM document_categories c
         LEFT JOIN documents d ON c.id = d.category_id
         LEFT JOIN document_folders f ON c.id = f.category_id
-        WHERE c.id = ${id}::uuid
+        WHERE c.id = ${id}
         GROUP BY c.id
       `;
 
@@ -114,7 +114,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
       const categoryId = result[0].id;
 
       const categories = await prisma.$queryRaw<CategoryWithCount[]>`
-        SELECT * FROM document_categories WHERE id = ${categoryId}::uuid
+        SELECT * FROM document_categories WHERE id = ${categoryId}
       `;
 
       reply.status(201).send({
@@ -169,7 +169,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
 
       if (updates.length === 0) {
         const categories = await prisma.$queryRaw<CategoryWithCount[]>`
-          SELECT * FROM document_categories WHERE id = ${id}::uuid
+          SELECT * FROM document_categories WHERE id = ${id}
         `;
         return reply.send({
           success: true,
@@ -182,11 +182,11 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
       await prisma.$executeRawUnsafe(`
         UPDATE document_categories
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex}::uuid
+        WHERE id = $${paramIndex}
       `, ...values, id);
 
       const categories = await prisma.$queryRaw<CategoryWithCount[]>`
-        SELECT * FROM document_categories WHERE id = ${id}::uuid
+        SELECT * FROM document_categories WHERE id = ${id}
       `;
 
       reply.send({
@@ -212,7 +212,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
 
       // Check if category has documents
       const count = await prisma.$queryRaw<Array<{ count: number }>>`
-        SELECT COUNT(*)::int as count FROM documents WHERE category_id = ${id}::uuid
+        SELECT COUNT(*)::int as count FROM documents WHERE category_id = ${id}
       `;
 
       if (count[0].count > 0) {
@@ -223,7 +223,7 @@ export async function categoriesRoutes(app: FastifyInstance, context: ModuleCont
       }
 
       await prisma.$executeRaw`
-        DELETE FROM document_categories WHERE id = ${id}::uuid
+        DELETE FROM document_categories WHERE id = ${id}
       `;
 
       reply.send({
